@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
 
 jobs:
@@ -15,7 +13,6 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Build and publish image
-        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           docker login --username rankguessr --password ${{ secrets.GH_PAT }} ghcr.io
           docker build -t ghcr.io/rankguessr/api:${{ github.ref_name }} -t ghcr.io/rankguessr/api:latest .

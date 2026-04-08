@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/rand"
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v5"
 	"github.com/rankguessr/api/internal/service"
@@ -72,7 +73,9 @@ func RoomDownloadReplay(rooms service.Rooms, client *osuapi.Client) echo.Handler
 			return err
 		}
 
-		roomId := c.Param("id")
+		filename := c.Param("filename")
+
+		roomId := strings.TrimSuffix(filename, ".osr")
 		room, err := rooms.FindByID(ctx, roomId)
 		if err != nil {
 			return err
@@ -133,6 +136,7 @@ func RoomGetScore(rooms service.Rooms, client *osuapi.Client) echo.HandlerFunc {
 				"accuracy":   score.Accuracy,
 				"beatmapset": score.BeatmapSet,
 				"beatmap":    score.BeatmapExtended,
+				"statistics": score.Statistics,
 			},
 			"is_closed": room.IsClosed,
 		})

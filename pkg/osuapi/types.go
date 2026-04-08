@@ -102,6 +102,15 @@ type BeatmapSet struct {
 	Covers         Covers `json:"covers"`
 }
 
+type ScoreStatistics struct {
+	Count300  int `json:"count_300"`
+	Count100  int `json:"count_100"`
+	Count50   int `json:"count_50"`
+	CountMiss int `json:"count_miss"`
+	CountGeki int `json:"count_geki"`
+	CountKatu int `json:"count_katu"`
+}
+
 type Score struct {
 	ID              int             `json:"id"`
 	PP              float32         `json:"pp"`
@@ -110,6 +119,7 @@ type Score struct {
 	BeatmapID       int             `json:"beatmap_id"`
 	HasReplay       bool            `json:"has_replay"`
 	ReplayLegacy    bool            `json:"replay"`
+	Statistics      map[string]any  `json:"statistics"`
 	BeatmapSet      BeatmapSet      `json:"beatmapset"`
 	BeatmapExtended BeatmapExtended `json:"beatmap"`
 }

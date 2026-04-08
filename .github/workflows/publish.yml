@@ -1,0 +1,23 @@
+name: Test and Publish new docker image
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build and publish image
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          docker login --username rankguessr --password ${{ secrets.GH_PAT }} ghcr.io
+          docker build -t ghcr.io/rankguessr/api:${{ github.ref_name }} -t ghcr.io/rankguessr/api:latest .
+          docker push ghcr.io/rankguessr/api:${{ github.ref_name }}
+          docker push ghcr.io/rankguessr/api:latest

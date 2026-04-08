@@ -82,6 +82,11 @@ func main() {
 	e := echo.New()
 	e.Use(middleware.Recover())
 	e.Use(middleware.RequestID())
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowCredentials: true,
+		AllowOrigins:     []string{cfg.WebURL},
+		AllowHeaders:     []string{echo.HeaderAccept, echo.HeaderOrigin, echo.HeaderContentType},
+	}))
 	e.Use(rmiddleware.RequestLogger(logger))
 	e.Use(middleware.ContextTimeout(time.Second * 30))
 	sessions := rmiddleware.Session(client, sessionsService)

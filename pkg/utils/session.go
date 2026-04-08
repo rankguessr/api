@@ -19,10 +19,11 @@ func GetSessionCookie(ctx *echo.Context) (string, error) {
 	return cookie.Value, nil
 }
 
-func SetSessionCookie(ctx *echo.Context, sessionId string) {
+func SetSessionCookie(ctx *echo.Context, domain, sessionId string) {
 	cookie := &http.Cookie{
 		Path:     "/",
 		HttpOnly: true,
+		Domain:   domain,
 		Value:    sessionId,
 		Name:     SessionCookieName,
 		SameSite: http.SameSiteLaxMode,
@@ -31,12 +32,13 @@ func SetSessionCookie(ctx *echo.Context, sessionId string) {
 	ctx.SetCookie(cookie)
 }
 
-func UnsetSessionCookie(ctx *echo.Context) {
+func UnsetSessionCookie(ctx *echo.Context, domain string) {
 	cookie := &http.Cookie{
 		Path:     "/",
 		HttpOnly: true,
 		Value:    "",
 		MaxAge:   -1,
+		Domain:   domain,
 		Name:     SessionCookieName,
 		SameSite: http.SameSiteLaxMode,
 	}

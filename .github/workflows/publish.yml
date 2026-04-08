@@ -15,6 +15,6 @@ jobs:
       - name: Build and publish image
         run: |
           docker login --username rankguessr --password ${{ secrets.GH_PAT }} ghcr.io
-          docker build -t ghcr.io/rankguessr/api:${{ github.ref_name }} -t ghcr.io/rankguessr/api:latest .
-          docker push ghcr.io/rankguessr/api:${{ github.ref_name }}
+          docker build -t ghcr.io/rankguessr/api:${{ github.sha }} -t ghcr.io/rankguessr/api:latest .
+          docker push ghcr.io/rankguessr/api:${{ github.sha }}
           docker push ghcr.io/rankguessr/api:latest

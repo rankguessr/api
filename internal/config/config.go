@@ -1,6 +1,10 @@
 package config
 
-import "github.com/rankguessr/api/pkg/renv"
+import (
+	"net/url"
+
+	"github.com/rankguessr/api/pkg/renv"
+)
 
 type Config struct {
 	AppURL          string `env:"APP_URL,required"`
@@ -9,6 +13,11 @@ type Config struct {
 	OsuClientID     string `env:"OSU_CLIENT_ID,required"`
 	OsuClientSecret string `env:"OSU_CLIENT_SECRET,required"`
 	DatabaseURL     string `env:"DATABASE_URL,required"`
+}
+
+func (c *Config) CookieDomain() string {
+	parsedURL, _ := url.Parse(c.WebURL)
+	return parsedURL.Hostname()
 }
 
 func Read() (*Config, error) {

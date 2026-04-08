@@ -10,11 +10,12 @@ const (
 	AuthStateCookieName = "auth_state"
 )
 
-func SetAuthStateCookie(ctx *echo.Context, value string) {
+func SetAuthStateCookie(ctx *echo.Context, domain, value string) {
 	cookie := &http.Cookie{
 		Path:     "/",
 		HttpOnly: true,
 		Value:    value,
+		Domain:   domain,
 		Name:     AuthStateCookieName,
 		SameSite: http.SameSiteLaxMode,
 	}
@@ -22,12 +23,13 @@ func SetAuthStateCookie(ctx *echo.Context, value string) {
 	ctx.SetCookie(cookie)
 }
 
-func UnsetAuthStateCookie(ctx *echo.Context) {
+func UnsetAuthStateCookie(ctx *echo.Context, domain string) {
 	cookie := &http.Cookie{
 		Path:     "/",
 		HttpOnly: true,
 		Value:    "",
 		MaxAge:   -1,
+		Domain:   domain,
 		Name:     AuthStateCookieName,
 		SameSite: http.SameSiteLaxMode,
 	}

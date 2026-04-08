@@ -41,7 +41,7 @@ func AuthLogin(cfg *config.Config) echo.HandlerFunc {
 		params.Add("client_id", cfg.OsuClientID)
 		params.Add("redirect_uri", cfg.AppURL+"/auth/callback")
 
-		utils.SetAuthStateCookie(ctx, state)
+		utils.SetAuthStateCookie(ctx, cfg.CookieDomain(), state)
 
 		return ctx.Redirect(302, "https://osu.ppy.sh/oauth/authorize?"+params.Encode())
 	}
@@ -92,8 +92,8 @@ func AuthCallback(cfg *config.Config, client *osuapi.Client, users service.User,
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		utils.UnsetAuthStateCookie(c)
-		utils.SetSessionCookie(c, session.ID)
+		utils.UnsetAuthStateCookie(c, cfg.CookieDomain())
+		utils.SetSessionCookie(c, cfg.CookieDomain(), session.ID)
 
 		return c.Redirect(302, cfg.WebURL)
 	}

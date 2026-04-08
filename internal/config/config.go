@@ -15,8 +15,13 @@ type Config struct {
 	DatabaseURL     string `env:"DATABASE_URL,required"`
 }
 
-func (c *Config) CookieDomain() string {
+func (c *Config) WebDomain() string {
 	parsedURL, _ := url.Parse(c.WebURL)
+	return parsedURL.Hostname()
+}
+
+func (c *Config) AppDomain() string {
+	parsedURL, _ := url.Parse(c.AppURL)
 	return parsedURL.Hostname()
 }
 

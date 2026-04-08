@@ -20,11 +20,6 @@ func (c *Config) WebDomain() string {
 	return parsedURL.Hostname()
 }
 
-func (c *Config) AppDomain() string {
-	parsedURL, _ := url.Parse(c.AppURL)
-	return parsedURL.Hostname()
-}
-
 func Read() (*Config, error) {
 	cfg := &Config{}
 	return cfg, renv.Parse(cfg)

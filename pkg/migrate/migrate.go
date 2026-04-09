@@ -72,7 +72,21 @@ var migrations = []Entry{
 				"created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				FOREIGN KEY (user_id) REFERENCES users(osu_id) ON DELETE CASCADE
 			);
-			`,
+		`,
+	},
+	{
+		Version: "v0.0.2",
+		SQL: `
+			ALTER TABLE "rooms" DROP COLUMN "is_closed";
+			ALTER TABLE "rooms" ADD COLUMN "guess_id" CHAR(27);
+			ALTER TABLE "rooms" ADD FOREIGN KEY (guess_id) REFERENCES guesses(id) ON DELETE CASCADE;
+		`,
+	},
+	{
+		Version: "v0.0.3",
+		SQL: `
+			ALTER TABLE "sessions" ADD UNIQUE (user_id);
+		`,
 	},
 }
 

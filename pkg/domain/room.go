@@ -7,7 +7,7 @@ type Room struct {
 	UserID    int       `json:"user_id"`
 	ScoreID   int       `json:"score_id"`
 	PlayerID  int       `json:"player_id"`
-	IsClosed  bool      `json:"is_closed"`
+	GuessID   *string   `json:"guess_id" db:"guess_id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

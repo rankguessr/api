@@ -11,8 +11,11 @@ import (
 
 type Rooms interface {
 	FindByID(ctx context.Context, id string) (domain.Room, error)
-	SetClosed(ctx context.Context, id string, value bool) error
+	FindByUser(ctx context.Context, userId int) (domain.Room, error)
 	Create(ctx context.Context, playerId, userId, scoreId int) (domain.Room, error)
+
+	UpdateGuessID(ctx context.Context, id string, guessId string) error
+	UpdateScore(ctx context.Context, id string, playerId, scoreId int, guessId *string) (domain.Room, error)
 }
 
 type rooms struct {
@@ -25,13 +28,40 @@ func NewRooms(pool *pgxpool.Pool) Rooms {
 	return &rooms{pool: pool}
 }
 
-func (s *rooms) SetClosed(ctx context.Context, id string, value bool) error {
-	_, err := s.pool.Exec(ctx, "UPDATE rooms SET is_closed = $1 WHERE id = $2", value, id)
+func (s *rooms) FindByUser(ctx context.Context, userId int) (domain.Room, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT * FROM rooms 
+		WHERE user_id = $1 AND guess_id IS NULL
+		ORDER BY created_at DESC LIMIT 1
+	`, userId)
 	if err != nil {
-		return err
+		return domain.Room{}, err
 	}
 
-	return nil
+	return pgx.CollectOneRow(rows, rowToRoom)
+}
+
+func (s *rooms) UpdateGuessID(ctx context.Context, id string, guessId string) error {
+	_, err := s.pool.Exec(ctx, `
+		UPDATE rooms SET guess_id = $1 WHERE id = $2
+	`, guessId, id)
+	return err
+}
+
+func (s *rooms) UpdateScore(ctx context.Context, id string, playerId, scoreId int, guessId *string) (domain.Room, error) {
+	rows, err := s.pool.Query(ctx, `
+		UPDATE rooms SET 
+			player_id = $1, 
+			score_id = $2, 
+			guess_id = $3 
+		WHERE id = $4 
+		RETURNING *
+	`, playerId, scoreId, guessId, id)
+	if err != nil {
+		return domain.Room{}, err
+	}
+
+	return pgx.CollectOneRow(rows, rowToRoom)
 }
 
 const createRoomQuery = `

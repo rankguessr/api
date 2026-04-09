@@ -16,6 +16,7 @@ type Guesses interface {
 	CountFromDate(ctx context.Context, from time.Time) (int, error)
 
 	FindLatest(ctx context.Context) ([]domain.Guess, error)
+	FindById(ctx context.Context, id string) (domain.Guess, error)
 	FindByUser(ctx context.Context, userId, limit int) ([]domain.Guess, error)
 	FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.Guess, error)
 
@@ -28,6 +29,15 @@ type guesses struct {
 
 func NewGuesses(pool *pgxpool.Pool) Guesses {
 	return &guesses{pool: pool}
+}
+
+func (g *guesses) FindById(ctx context.Context, id string) (domain.Guess, error) {
+	rows, err := g.pool.Query(ctx, "SELECT * FROM guesses WHERE id = $1", id)
+	if err != nil {
+		return domain.Guess{}, err
+	}
+
+	return pgx.CollectOneRow(rows, rowToGuess)
 }
 
 const countFromDateQuery = `

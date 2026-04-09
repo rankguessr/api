@@ -9,7 +9,10 @@ import (
 
 type Rooms interface {
 	FindByID(ctx context.Context, id string) (domain.Room, error)
-	Close(ctx context.Context, id string) error
+	FindByUser(ctx context.Context, userId int) (domain.Room, error)
+
+	UpdateGuessID(ctx context.Context, id string, guessId string) error
+	UpdateScore(ctx context.Context, id string, playerId, scoreId int) (domain.Room, error)
 	Create(ctx context.Context, playerId, userId, scoreId int) (domain.Room, error)
 }
 
@@ -21,8 +24,16 @@ func NewRooms(repo repo.Rooms) Rooms {
 	return &rooms{repo: repo}
 }
 
-func (s *rooms) Close(ctx context.Context, id string) error {
-	return s.repo.SetClosed(ctx, id, true)
+func (s *rooms) UpdateGuessID(ctx context.Context, id string, guessId string) error {
+	return s.repo.UpdateGuessID(ctx, id, guessId)
+}
+
+func (s *rooms) FindByUser(ctx context.Context, userId int) (domain.Room, error) {
+	return s.repo.FindByUser(ctx, userId)
+}
+
+func (s *rooms) UpdateScore(ctx context.Context, id string, playerId, scoreId int) (domain.Room, error) {
+	return s.repo.UpdateScore(ctx, id, playerId, scoreId, nil)
 }
 
 func (s *rooms) FindByID(ctx context.Context, id string) (domain.Room, error) {

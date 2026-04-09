@@ -14,6 +14,7 @@ type Guess interface {
 
 	FindLatest(ctx context.Context) ([]domain.Guess, error)
 	FindByUser(ctx context.Context, userId, limit int) ([]domain.Guess, error)
+	FindById(ctx context.Context, id string) (domain.Guess, error)
 	FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.Guess, error)
 
 	Create(ctx context.Context, userId, playerId, guess, actualRank int) (domain.Guess, error)
@@ -25,6 +26,10 @@ type guess struct {
 
 func NewGuess(repo repo.Guesses) Guess {
 	return &guess{repo: repo}
+}
+
+func (g *guess) FindById(ctx context.Context, id string) (domain.Guess, error) {
+	return g.repo.FindById(ctx, id)
 }
 
 func (g *guess) CountFromDate(ctx context.Context, from time.Time) (int, error) {

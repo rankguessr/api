@@ -106,15 +106,18 @@ func main() {
 	{
 		user.Use(sessions)
 		user.GET("/me", handlers.AuthMe(userService))
+		user.GET("/current-room", handlers.UserGetCurrentRoom(roomsService, client))
 		user.GET("/latest", handlers.UserGetLatest(userService, guessService))
 	}
 
 	room := e.Group("/room")
 	{
 		room.Use(sessions)
-		room.GET("/:id/score", handlers.RoomGetScore(roomsService, client))
-		room.POST("/:id", handlers.RoomSubmitGuess(roomsService, guessService, client))
+		room.GET("/:id/score", handlers.RoomGetScore(roomsService, guessService, client))
 		room.GET("/replay/:filename", handlers.RoomDownloadReplay(roomsService, client))
+
+		room.POST("/:id", handlers.RoomSubmitGuess(roomsService, guessService, client))
+		room.POST("/:id/next", handlers.RoomGetNext(roomsService, playerService, client))
 		room.POST("/start", handlers.RoomStart(playerService, roomsService, client))
 	}
 

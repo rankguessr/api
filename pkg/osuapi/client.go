@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -146,4 +147,21 @@ func (c *Client) GetMultiRooms(ctx context.Context, accessToken string) ([]Multi
 	}
 	SetAuthHeader(req, accessToken)
 	return DoAndParse[[]MultiRoom](req)
+}
+
+func (c *Client) GetRankings(ctx context.Context, accessToken string, cursor *Cursor) (Rankings, error) {
+	data := url.Values{}
+	if cursor != nil {
+		data.Set("cursor[page]", strconv.Itoa(cursor.Page))
+	}
+
+	path := fmt.Sprintf("/rankings/osu/global?%s", data.Encode())
+	req, err := NewAPIv2Request(ctx, "GET", path, nil)
+	if err != nil {
+		return Rankings{}, err
+	}
+
+	SetAuthHeader(req, accessToken)
+
+	return DoAndParse[Rankings](req)
 }

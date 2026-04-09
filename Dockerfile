@@ -19,4 +19,4 @@ WORKDIR /build
 
 COPY --from=builder /build/rankguessr /build/rankguessr
 
-CMD ["./rankguessr"]
+CMD ["./rankguessr", "start"]

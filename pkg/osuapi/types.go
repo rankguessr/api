@@ -127,3 +127,18 @@ type Score struct {
 func (s Score) Replay() bool {
 	return s.HasReplay || s.ReplayLegacy
 }
+
+type Cursor struct {
+	Page int `json:"page"`
+}
+
+type UserStats struct {
+	GlobalRank int     `json:"global_rank"`
+	PP         float32 `json:"pp"`
+	User       User    `json:"user"`
+}
+
+type Rankings struct {
+	Cursor  *Cursor     `json:"cursor"`
+	Ranking []UserStats `json:"ranking"`
+}

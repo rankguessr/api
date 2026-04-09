@@ -8,6 +8,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/labstack/echo/v5 v5.1.0
 	github.com/segmentio/ksuid v1.0.4
+	github.com/urfave/cli/v3 v3.8.0
 	github.com/wieku/rplpa v1.0.2
 )
 

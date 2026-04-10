@@ -78,6 +78,7 @@ type MultiRoom struct {
 }
 
 type Beatmap struct {
+	ID               int     `json:"id"`
 	DifficultyRating float32 `json:"difficulty_rating"`
 	TotalLength      int     `json:"total_length"`
 	MaxCombo         int     `json:"max_combo"`
@@ -112,16 +113,17 @@ type ScoreStatistics struct {
 }
 
 type Score struct {
-	ID              int             `json:"id"`
-	PP              float32         `json:"pp"`
-	Mods            []string        `json:"mods"`
-	Accuracy        float32         `json:"accuracy"`
-	BeatmapID       int             `json:"beatmap_id"`
-	HasReplay       bool            `json:"has_replay"`
-	ReplayLegacy    bool            `json:"replay"`
-	Statistics      map[string]any  `json:"statistics"`
-	BeatmapSet      BeatmapSet      `json:"beatmapset"`
-	BeatmapExtended BeatmapExtended `json:"beatmap"`
+	ID           int             `json:"id"`
+	PP           float32         `json:"pp"`
+	Mods         []string        `json:"mods"`
+	Accuracy     float32         `json:"accuracy"`
+	BeatmapID    int             `json:"beatmap_id"`
+	HasReplay    bool            `json:"has_replay"`
+	ReplayLegacy bool            `json:"replay"`
+	User         User            `json:"user"`
+	Statistics   map[string]any  `json:"statistics"`
+	BeatmapSet   BeatmapSet      `json:"beatmapset"`
+	Beatmap      BeatmapExtended `json:"beatmap"`
 }
 
 func (s Score) Replay() bool {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"github.com/rankguessr/api/internal/repo"
 	"github.com/rankguessr/api/pkg/domain"
@@ -41,5 +42,10 @@ func (s *rooms) FindByID(ctx context.Context, id string) (domain.Room, error) {
 }
 
 func (s *rooms) Create(ctx context.Context, playerId int, userId int, scoreId int) (domain.Room, error) {
+	_, err := s.FindByUser(ctx, userId)
+	if err == nil {
+		return domain.Room{}, errors.New("user already has a room")
+	}
+
 	return s.repo.Create(ctx, playerId, userId, scoreId)
 }

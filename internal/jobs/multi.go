@@ -62,7 +62,7 @@ func (s *Scheduler) collectFromMultis() (int64, error) {
 
 func (s *Scheduler) RegisterJobs() error {
 	j, err := s.sch.NewJob(
-		gocron.DurationJob(time.Minute),
+		gocron.DurationJob(5*time.Minute),
 		gocron.NewTask(
 			func() {
 				count, err := s.collectFromMultis()

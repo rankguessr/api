@@ -14,7 +14,7 @@ func HealthCheck(ctx *echo.Context) error {
 	})
 }
 
-func PublicStatsGet(guess service.Guess) echo.HandlerFunc {
+func PublicStatsGet(guess service.Guess, users service.User) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		count24h, err := guess.CountFromDate(ctx, time.Now().Add(-24*time.Hour))
@@ -31,14 +31,14 @@ func PublicStatsGet(guess service.Guess) echo.HandlerFunc {
 			})
 		}
 
-		best, err := guess.FindTopFromDate(ctx, time.Now().Add(-24*time.Hour), 10)
+		bestGuesses, err := guess.FindTopFromDate(ctx, time.Now().Add(-24*time.Hour), 10)
 		if err != nil {
 			return c.JSON(500, utils.Map{
 				"error": "failed to get stats",
 			})
 		}
 
-		latest, err := guess.FindLatest(ctx)
+		topUsers, err := users.FindTop(ctx, 15)
 		if err != nil {
 			return c.JSON(500, utils.Map{
 				"error": "failed to get stats",
@@ -46,8 +46,8 @@ func PublicStatsGet(guess service.Guess) echo.HandlerFunc {
 		}
 
 		return c.JSON(200, utils.Map{
-			"best":         best,
-			"latest":       latest,
+			"top_users":    topUsers,
+			"best":         bestGuesses,
 			"count_24h":    count24h,
 			"count_global": countGlobal,
 		})

@@ -109,7 +109,7 @@ func main() {
 
 					{
 						e.GET("/health", handlers.HealthCheck)
-						e.GET("/stats", handlers.PublicStatsGet(guessService))
+						e.GET("/stats", handlers.PublicStatsGet(guessService, userService))
 					}
 
 					auth := e.Group("/auth")

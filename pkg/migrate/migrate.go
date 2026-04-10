@@ -88,6 +88,15 @@ var migrations = []Entry{
 			ALTER TABLE "sessions" ADD UNIQUE (user_id);
 		`,
 	},
+	{
+		Version: "v0.0.7",
+		SQL: `
+			ALTER TABLE "users" ADD COLUMN "elo" INTEGER NOT NULL DEFAULT 0;
+			ALTER TABLE "guesses" ADD COLUMN "beatmapset_id" INTEGER NOT NULL;
+			ALTER TABLE "guesses" ADD COLUMN "beatmap_id" INTEGER NOT NULL;
+			ALTER TABLE "guesses" ADD COLUMN "score_id" BIGINT NOT NULL;
+		`,
+	},
 }
 
 var latest = migrations[len(migrations)-1].Version

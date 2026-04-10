@@ -13,6 +13,7 @@ var rowToUser = pgx.RowToStructByName[domain.User]
 type Users interface {
 	Upsert(ctx context.Context, osuId int, username, avatarURL, countryCode string) error
 
+	FindTop(ctx context.Context, limit int) ([]domain.User, error)
 	FindByOsuID(ctx context.Context, osuId int) (domain.User, error)
 }
 
@@ -37,6 +38,19 @@ func (u *users) FindByOsuID(ctx context.Context, osuId int) (domain.User, error)
 	}
 
 	return pgx.CollectOneRow(rows, rowToUser)
+}
+
+func (u *users) FindTop(ctx context.Context, limit int) ([]domain.User, error) {
+	rows, err := u.pool.Query(ctx, `
+		SELECT * FROM users
+		ORDER BY elo DESC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	return pgx.CollectRows(rows, rowToUser)
 }
 
 const upsertUserQuery = `

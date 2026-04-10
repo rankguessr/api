@@ -20,7 +20,7 @@ type Guesses interface {
 	FindByUser(ctx context.Context, userId, limit int) ([]domain.Guess, error)
 	FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.Guess, error)
 
-	Create(ctx context.Context, userId, playerId, guess, actualRank, elo int) (domain.Guess, error)
+	Create(ctx context.Context, userId, playerId, guess, actualRank, elo, scoreId, beatmapId, beatmapSetId int) (domain.Guess, error)
 }
 
 type guesses struct {
@@ -83,24 +83,46 @@ func (g *guesses) FindTopFromDate(ctx context.Context, from time.Time, limit int
 }
 
 const createGuessQuery = `
-	INSERT INTO guesses (id, user_id, player_id, guess, actual_rank, elo)
-	VALUES (@id, @userId, @playerId, @guess, @actualRank, @elo) RETURNING *
+	INSERT INTO guesses (id, user_id, player_id, guess, actual_rank, elo, beatmap_id, beatmapset_id, score_id)
+	VALUES (@id, @userId, @playerId, @guess, @actualRank, @elo, @beatmapId, @beatmapSetId, @scoreId) RETURNING *
 `
 
-func (g *guesses) Create(ctx context.Context, userId int, playerId int, guess int, actualRank int, elo int) (domain.Guess, error) {
-	rows, err := g.pool.Query(ctx, createGuessQuery, pgx.NamedArgs{
+func (g *guesses) Create(ctx context.Context, userId, playerId, guess, actualRank, elo, scoreId, beatmapId, beatmapSetId int) (domain.Guess, error) {
+	tx, err := g.pool.Begin(ctx)
+	if err != nil {
+		return domain.Guess{}, err
+	}
+
+	rows, err := tx.Query(ctx, createGuessQuery, pgx.NamedArgs{
 		"elo":        elo,
 		"guess":      guess,
 		"userId":     userId,
 		"playerId":   playerId,
 		"actualRank": actualRank,
 		"id":         utils.NewID(),
+
+		"scoreId":      scoreId,
+		"beatmapId":    beatmapId,
+		"beatmapSetId": beatmapSetId,
 	})
 	if err != nil {
+		tx.Rollback(ctx)
 		return domain.Guess{}, err
 	}
 
-	return pgx.CollectOneRow(rows, rowToGuess)
+	guessRes, err := pgx.CollectOneRow(rows, rowToGuess)
+	if err != nil {
+		tx.Rollback(ctx)
+		return domain.Guess{}, err
+	}
+
+	_, err = tx.Exec(ctx, "UPDATE users SET elo = GREATEST(0, elo + $1) WHERE osu_id = $2", elo, userId)
+	if err != nil {
+		tx.Rollback(ctx)
+		return domain.Guess{}, err
+	}
+
+	return guessRes, tx.Commit(ctx)
 }
 
 func (g *guesses) FindByUser(ctx context.Context, userId, limit int) ([]domain.Guess, error) {

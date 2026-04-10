@@ -59,6 +59,12 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 					return "", err
 				}
 
+				// check if score is valid & exists
+				_, err = client.GetScore(ctx, session.AccessToken, score.ID)
+				if err != nil {
+					return "", err
+				}
+
 				s, err := rooms.Create(ctx, p.OsuId, session.User.OsuID, score.ID)
 				if err != nil {
 					return "", err
@@ -135,7 +141,7 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 						"mods":       score.Mods,
 						"accuracy":   score.Accuracy,
 						"beatmapset": score.BeatmapSet,
-						"beatmap":    score.BeatmapExtended,
+						"beatmap":    score.Beatmap,
 						"statistics": score.Statistics,
 					},
 					"guess": nil,
@@ -228,10 +234,12 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 				"mods":       score.Mods,
 				"accuracy":   score.Accuracy,
 				"beatmapset": score.BeatmapSet,
-				"beatmap":    score.BeatmapExtended,
+				"beatmap":    score.Beatmap,
 				"statistics": score.Statistics,
+				"user":       score.User,
 			},
-			"guess": guess,
+			"player": score.User,
+			"guess":  guess,
 		})
 	}
 }
@@ -240,7 +248,7 @@ type submitRequest struct {
 	Guess int `json:"guess"`
 }
 
-func RoomSubmitGuess(rooms service.Rooms, guess service.Guess, client *osuapi.Client) echo.HandlerFunc {
+func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.Client) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -272,16 +280,27 @@ func RoomSubmitGuess(rooms service.Rooms, guess service.Guess, client *osuapi.Cl
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		g, err := guess.Create(ctx, session.User.OsuID, player.ID, req.Guess, player.Statistics.GlobalRank)
+		score, err := client.GetScore(ctx, session.AccessToken, room.ScoreID)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		err = rooms.UpdateGuessID(ctx, room.ID, g.ID)
+		guess, err := guesses.Create(
+			ctx, session.User.OsuID, player.ID, req.Guess,
+			player.Statistics.GlobalRank, room.ScoreID, score.BeatmapID, score.Beatmap.BeatmapSetId,
+		)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		return c.JSON(200, g)
+		err = rooms.UpdateGuessID(ctx, room.ID, guess.ID)
+		if err != nil {
+			return echo.ErrInternalServerError.Wrap(err)
+		}
+
+		return c.JSON(200, utils.Map{
+			"guess":  guess,
+			"player": player,
+		})
 	}
 }

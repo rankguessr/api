@@ -25,6 +25,7 @@ func UserGetMe(user service.User) echo.HandlerFunc {
 		}
 
 		return c.JSON(http.StatusOK, utils.Map{
+			"elo":          u.Elo,
 			"osu_id":       u.OsuID,
 			"username":     u.Username,
 			"avatar_url":   u.AvatarURL,
@@ -62,7 +63,7 @@ func UserGetCurrentRoom(rooms service.Rooms, client *osuapi.Client) echo.Handler
 					"mods":       score.Mods,
 					"accuracy":   score.Accuracy,
 					"beatmapset": score.BeatmapSet,
-					"beatmap":    score.BeatmapExtended,
+					"beatmap":    score.Beatmap,
 					"statistics": score.Statistics,
 				},
 			},

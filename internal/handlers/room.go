@@ -8,7 +8,6 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/rankguessr/api/internal/service"
-	"github.com/rankguessr/api/pkg/domain"
 	"github.com/rankguessr/api/pkg/osuapi"
 	"github.com/rankguessr/api/pkg/utils"
 	"github.com/wieku/rplpa"
@@ -214,13 +213,13 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 			return echo.ErrUnauthorized
 		}
 
-		var guess *domain.Guess
-		if room.GuessID != nil {
-			g, err := guesses.FindById(ctx, string(*room.GuessID))
-			if err != nil {
-				return err
-			}
-			guess = &g
+		if room.GuessID == nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "guess has not been submitted yet")
+		}
+
+		guess, err := guesses.FindById(ctx, string(*room.GuessID))
+		if err != nil {
+			return err
 		}
 
 		score, err := client.GetScore(ctx, session.AccessToken, room.ScoreID)

@@ -11,7 +11,7 @@
 
   env.WEB_URL = "http://localhost:5173";
   env.APP_URL = "http://localhost:8080";
-  env.JWT_SECRET = "test-secret-dont-use-in-production";
+  env.ENCRYPTION_KEY = "test-key-dont-use-in-production";
   env.DATABASE_URL = "postgres://postgres:postgres@127.0.0.1/rankguessr?sslmode=disable";
 
   packages = [

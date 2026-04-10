@@ -81,7 +81,7 @@ func main() {
 					guessService := service.NewGuess(guessRepo)
 
 					sessionsRepo := repo.NewSessions(pool)
-					sessionsService := service.NewSessions(sessionsRepo)
+					sessionsService := service.NewSessions(cfg, sessionsRepo)
 
 					sch, err := jobs.NewScheduler(client, playerService)
 					if err != nil {

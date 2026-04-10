@@ -12,3 +12,5 @@ devenv.local.yaml
 .env
 tmp
 guessr
+
+.DS_Store

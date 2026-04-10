@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log"
 	"log/slog"
 
 	"github.com/labstack/echo/v5"
@@ -21,6 +22,7 @@ func RequestLogger(logger *slog.Logger) echo.MiddlewareFunc {
 					slog.Int("status", v.Status),
 				)
 			} else {
+				log.Println(v.Error.Error())
 				logger.LogAttrs(context.Background(), slog.LevelError, "REQUEST_ERROR",
 					slog.String("uri", v.URI),
 					slog.Int("status", v.Status),

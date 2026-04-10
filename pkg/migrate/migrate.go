@@ -97,6 +97,13 @@ var migrations = []Entry{
 			ALTER TABLE "guesses" ADD COLUMN "score_id" BIGINT NOT NULL;
 		`,
 	},
+	{
+		Version: "v0.0.8",
+		SQL: `
+			ALTER TABLE "sessions" ALTER COLUMN access_token TYPE BYTEA USING access_token::bytea;
+			ALTER TABLE "sessions" ALTER COLUMN refresh_token TYPE BYTEA USING refresh_token::bytea;
+		`,
+	},
 }
 
 var latest = migrations[len(migrations)-1].Version

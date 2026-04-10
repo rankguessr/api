@@ -228,6 +228,11 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 			return err
 		}
 
+		var user *osuapi.User
+		if guess != nil {
+			user = &score.User
+		}
+
 		return c.JSON(200, utils.Map{
 			"score": utils.Map{
 				"pp":         score.PP,
@@ -236,6 +241,7 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 				"beatmapset": score.BeatmapSet,
 				"beatmap":    score.Beatmap,
 				"statistics": score.Statistics,
+				"user":       user,
 			},
 			"guess": guess,
 		})

@@ -19,6 +19,7 @@ type Rooms interface {
 
 	DeleteById(ctx context.Context, id string) error
 	DeleteByUser(ctx context.Context, userId int) error
+	DeleteByUserUnguessed(ctx context.Context, userId int) error
 }
 
 type rooms struct {
@@ -27,6 +28,10 @@ type rooms struct {
 
 func NewRooms(repo repo.Rooms) Rooms {
 	return &rooms{repo: repo}
+}
+
+func (s *rooms) DeleteByUserUnguessed(ctx context.Context, userId int) error {
+	return s.repo.DeleteByUserUnguessed(ctx, userId)
 }
 
 func (s *rooms) FindByUserUnguessed(ctx context.Context, userId int) (domain.Room, error) {

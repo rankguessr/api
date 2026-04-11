@@ -15,6 +15,7 @@ type Rooms interface {
 	FindByUserUnguessed(ctx context.Context, userId int) (domain.Room, error)
 	Create(ctx context.Context, playerId, userId, scoreId int) (domain.Room, error)
 	DeleteById(ctx context.Context, id string) error
+	DeleteByUserUnguessed(ctx context.Context, userId int) error
 	DeleteByUser(ctx context.Context, userId int) error
 
 	UpdateGuessID(ctx context.Context, id string, guessId string) error
@@ -25,17 +26,24 @@ type rooms struct {
 	pool *pgxpool.Pool
 }
 
-func (s *rooms) DeleteByUser(ctx context.Context, userId int) error {
+var rowToRoom = pgx.RowToStructByName[domain.Room]
+
+func NewRooms(pool *pgxpool.Pool) Rooms {
+	return &rooms{pool: pool}
+}
+
+func (s *rooms) DeleteByUserUnguessed(ctx context.Context, userId int) error {
 	_, err := s.pool.Exec(ctx, `
 		DELETE FROM rooms WHERE user_id = $1 AND guess_id IS NULL
 	`, userId)
 	return err
 }
 
-var rowToRoom = pgx.RowToStructByName[domain.Room]
-
-func NewRooms(pool *pgxpool.Pool) Rooms {
-	return &rooms{pool: pool}
+func (s *rooms) DeleteByUser(ctx context.Context, userId int) error {
+	_, err := s.pool.Exec(ctx, `
+		DELETE FROM rooms WHERE user_id = $1 AND guess_id IS NOT NULL
+	`, userId)
+	return err
 }
 
 func (s *rooms) FindByUserUnguessed(ctx context.Context, userId int) (domain.Room, error) {

@@ -230,6 +230,12 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 
 		score, err := client.GetScore(ctx, session.AccessToken, room.ScoreID)
 		if err != nil {
+			log.Println("failed to fetch room score")
+			err := rooms.DeleteById(ctx, roomId)
+			if err != nil {
+				return err
+			}
+
 			return err
 		}
 

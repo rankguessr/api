@@ -15,3 +15,8 @@ type Guess struct {
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
+
+type GuessExtended struct {
+	Guess
+	User User `json:"user"`
+}

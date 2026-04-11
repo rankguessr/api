@@ -15,7 +15,7 @@ type Guess interface {
 	FindLatest(ctx context.Context) ([]domain.Guess, error)
 	FindByUser(ctx context.Context, userId, limit int) ([]domain.Guess, error)
 	FindById(ctx context.Context, id string) (domain.Guess, error)
-	FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.Guess, error)
+	FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.GuessExtended, error)
 
 	Create(ctx context.Context, userId, playerId, guess, actualRank, scoreId, beatmapId, beatmapSetId int) (int, domain.Guess, error)
 }
@@ -40,7 +40,7 @@ func (g *guess) FindLatest(ctx context.Context) ([]domain.Guess, error) {
 	return g.repo.FindLatest(ctx)
 }
 
-func (g *guess) FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.Guess, error) {
+func (g *guess) FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.GuessExtended, error) {
 	return g.repo.FindTopFromDate(ctx, from, limit)
 }
 

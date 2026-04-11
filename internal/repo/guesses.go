@@ -11,6 +11,7 @@ import (
 )
 
 var rowToGuess = pgx.RowToStructByName[domain.Guess]
+var rowToGuessExtended = pgx.RowToStructByName[domain.GuessExtended]
 
 type Guesses interface {
 	CountFromDate(ctx context.Context, from time.Time) (int, error)
@@ -18,7 +19,7 @@ type Guesses interface {
 	FindLatest(ctx context.Context) ([]domain.Guess, error)
 	FindById(ctx context.Context, id string) (domain.Guess, error)
 	FindByUser(ctx context.Context, userId, limit int) ([]domain.Guess, error)
-	FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.Guess, error)
+	FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.GuessExtended, error)
 
 	Create(ctx context.Context, userId, playerId, guess, actualRank, elo, scoreId, beatmapId, beatmapSetId int) (int, domain.Guess, error)
 }
@@ -67,19 +68,22 @@ func (g *guesses) FindLatest(ctx context.Context) ([]domain.Guess, error) {
 }
 
 const findTopFromDateQuery = `
-	SELECT * FROM guesses
-	WHERE created_at >= $1
-	ORDER BY elo DESC 
+	SELECT 
+		g.*, to_json(u) AS user 
+	FROM guesses g
+	JOIN users u ON g.user_id = u.osu_id
+	WHERE g.created_at >= $1
+	ORDER BY g.elo DESC 
 	LIMIT $2
 `
 
-func (g *guesses) FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.Guess, error) {
+func (g *guesses) FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.GuessExtended, error) {
 	rows, err := g.pool.Query(ctx, findTopFromDateQuery, from, limit)
 	if err != nil {
 		return nil, err
 	}
 
-	return pgx.CollectRows(rows, rowToGuess)
+	return pgx.CollectRows(rows, pgx.RowToFunc[domain.GuessExtended](rowToGuessExtended))
 }
 
 const createGuessQuery = `

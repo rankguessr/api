@@ -13,7 +13,6 @@ import (
 	"github.com/labstack/echo/v5/middleware"
 	"github.com/rankguessr/api/internal/config"
 	"github.com/rankguessr/api/internal/handlers"
-	"github.com/rankguessr/api/internal/jobs"
 	rmiddleware "github.com/rankguessr/api/internal/middleware"
 	"github.com/rankguessr/api/internal/repo"
 	"github.com/rankguessr/api/internal/service"
@@ -83,17 +82,17 @@ func main() {
 					sessionsRepo := repo.NewSessions(pool)
 					sessionsService := service.NewSessions(cfg, sessionsRepo)
 
-					sch, err := jobs.NewScheduler(client, playerService)
-					if err != nil {
-						log.Fatal("failed to create scheduler: ", err)
-					}
+					// sch, err := jobs.NewScheduler(client, playerService)
+					// if err != nil {
+					// 	log.Fatal("failed to create scheduler: ", err)
+					// }
 
-					err = sch.RegisterJobs()
-					if err != nil {
-						log.Fatal("failed to register jobs: ", err)
-					}
+					// err = sch.RegisterJobs()
+					// if err != nil {
+					// 	log.Fatal("failed to register jobs: ", err)
+					// }
 
-					go sch.Start()
+					// go sch.Start()
 
 					e := echo.New()
 					e.Use(middleware.Recover())

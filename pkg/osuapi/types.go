@@ -42,6 +42,13 @@ type User struct {
 	Statistics  UserStatistics `json:"statistics"`
 }
 
+type UserFromBatch struct {
+	User
+	StatisticsRulesets struct {
+		Standard UserStatistics `json:"osu"`
+	} `json:"statistics_rulesets"`
+}
+
 type UserExtended struct {
 	User
 	// deprecated, use cover.url instead

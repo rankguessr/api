@@ -98,6 +98,25 @@ func (c *Client) GetUser(ctx context.Context, accessToken string, userId int) (U
 	return DoAndParse[UserExtended](req)
 }
 
+func (c *Client) GetUsers(ctx context.Context, accessToken string, userIds []int) ([]UserExtended, error) {
+	ids := make([]string, len(userIds))
+	for i, id := range userIds {
+		ids[i] = strconv.Itoa(id)
+	}
+
+	vals := url.Values{}
+	vals.Set("ids", strings.Join(ids, ","))
+	vals.Set("include_variant_statistics", "true")
+
+	req, err := NewAPIv2Request(ctx, "GET", fmt.Sprintf("/users?%s", vals.Encode()), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	SetAuthHeader(req, accessToken)
+	return DoAndParse[[]UserExtended](req)
+}
+
 func (c *Client) GetUserScores(ctx context.Context, accessToken string, userId int) ([]Score, error) {
 	vals := url.Values{}
 	vals.Set("mode", "osu")

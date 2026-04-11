@@ -104,6 +104,41 @@ var migrations = []Entry{
 			ALTER TABLE "sessions" ALTER COLUMN refresh_token TYPE BYTEA USING refresh_token::bytea;
 		`,
 	},
+	{
+		Version: "v0.0.9",
+		SQL: `
+			ALTER TABLE "users" ADD COLUMN "is_admin" BOOLEAN DEFAULT FALSE;
+
+			CREATE TABLE IF NOT EXISTS "submissions" (
+				"id" CHAR(27) PRIMARY KEY,
+				"user_id" INTEGER NOT NULL,
+				"player_id" INTEGER NOT NULL,
+				"score_id" BIGINT NOT NULL,
+				"is_accepted" BOOLEAN NOT NULL DEFAULT FALSE,
+				"created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				"updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				FOREIGN KEY (user_id) REFERENCES users(osu_id) ON DELETE CASCADE
+			);
+
+			CREATE TABLE IF NOT EXISTS "submission_guesses" (
+				"id" CHAR(27) PRIMARY KEY,
+				"submission_id" CHAR(27) NOT NULL,
+				"guess_id" CHAR(27) NOT NULL,
+				FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE,
+				FOREIGN KEY (guess_id) REFERENCES guesses(id) ON DELETE CASCADE
+			);
+
+			CREATE TABLE IF NOT EXISTS "submission_rooms" (
+				"id" CHAR(27) PRIMARY KEY,
+				"user_id" INTEGER NOT NULL,
+				"submission_id" CHAR(27) NOT NULL,
+				"guess_id" CHAR(27) NOT NULL,
+				FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE,
+				FOREIGN KEY (user_id) REFERENCES users(osu_id) ON DELETE CASCADE,
+				FOREIGN KEY (guess_id) REFERENCES guesses(id) ON DELETE CASCADE
+			);
+		`,
+	},
 }
 
 var latest = migrations[len(migrations)-1].Version

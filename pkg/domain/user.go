@@ -10,6 +10,7 @@ type User struct {
 	AvatarURL   string    `json:"avatar_url"`
 	CountryCode string    `json:"country_code"`
 	Elo         uint      `json:"elo"`
+	IsAdmin     bool      `json:"is_admin"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

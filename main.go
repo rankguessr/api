@@ -83,6 +83,9 @@ func main() {
 					sessionsRepo := repo.NewSessions(pool)
 					sessionsService := service.NewSessions(cfg, sessionsRepo)
 
+					submissionsRepo := repo.NewSubmissions(pool)
+					submissionsSvc := service.NewSubmissions(submissionsRepo)
+
 					sch, err := jobs.NewScheduler(client, playerService)
 					if err != nil {
 						log.Fatal("failed to create scheduler: ", err)
@@ -136,6 +139,18 @@ func main() {
 						room.POST("/:id", handlers.RoomSubmitGuess(roomsService, guessService, client))
 						room.POST("/:id/next", handlers.RoomGetNext(roomsService, playerService, client))
 						room.POST("/start", handlers.RoomStart(playerService, roomsService, client))
+					}
+
+					submissions := e.Group("/submissions")
+					{
+						submissions.Use(sessions)
+
+						submissions.POST("/", handlers.SubmissionCreate(submissionsSvc, client))
+						submissions.GET("/my", handlers.SubmissionFindByUser(submissionsSvc))
+						submissions.GET("/unaccepted", handlers.SubmissionFindUnaccepted(submissionsSvc))
+
+						submissions.DELETE("/:id", handlers.SubmissionDelete(submissionsSvc))
+						submissions.POST("/:id/accept", handlers.SubmissionSetAccepted(submissionsSvc))
 					}
 
 					return e.Start(fmt.Sprintf(":%s", cfg.PORT))

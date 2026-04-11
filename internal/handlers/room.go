@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -21,12 +22,14 @@ func findWithReplay(scores []osuapi.Score) (osuapi.Score, error) {
 		return osuapi.Score{}, errors.New("no replays available in top plays")
 	}
 
-	score := scores[0]
+	idx := rand.Intn(len(scores))
+	score := scores[idx]
 	if score.Replay() {
+		log.Printf("returning score %d\n", idx)
 		return score, nil
 	}
 
-	return findWithReplay(scores[1:])
+	return findWithReplay(append(scores[idx:], scores[idx+1:]...))
 }
 
 func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Client) echo.HandlerFunc {

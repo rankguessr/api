@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/labstack/echo/v5"
@@ -42,7 +43,8 @@ func UserGetCurrentRoom(rooms service.Rooms, client *osuapi.Client) echo.Handler
 			return echo.ErrUnauthorized.Wrap(err)
 		}
 
-		room, err := rooms.FindByUser(ctx, session.User.OsuID)
+		room, err := rooms.FindByUserUnguessed(ctx, session.User.OsuID)
+		log.Println(err)
 		if err != nil {
 			return c.JSON(http.StatusOK, utils.Map{
 				"room": nil,
@@ -51,6 +53,11 @@ func UserGetCurrentRoom(rooms service.Rooms, client *osuapi.Client) echo.Handler
 
 		score, err := client.GetScore(ctx, session.AccessToken, room.ScoreID)
 		if err != nil {
+			err := rooms.DeleteById(ctx, room.ID)
+			if err != nil {
+				return echo.ErrInternalServerError.Wrap(err)
+			}
+
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 

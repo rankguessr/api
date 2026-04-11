@@ -11,12 +11,14 @@ import (
 type Rooms interface {
 	FindByID(ctx context.Context, id string) (domain.Room, error)
 	FindByUser(ctx context.Context, userId int) (domain.Room, error)
+	FindByUserUnguessed(ctx context.Context, userId int) (domain.Room, error)
 
 	UpdateGuessID(ctx context.Context, id string, guessId string) error
 	UpdateScore(ctx context.Context, id string, playerId, scoreId int) (domain.Room, error)
 	Create(ctx context.Context, playerId, userId, scoreId int) (domain.Room, error)
 
 	DeleteById(ctx context.Context, id string) error
+	DeleteByUser(ctx context.Context, userId int) error
 }
 
 type rooms struct {
@@ -25,6 +27,14 @@ type rooms struct {
 
 func NewRooms(repo repo.Rooms) Rooms {
 	return &rooms{repo: repo}
+}
+
+func (s *rooms) FindByUserUnguessed(ctx context.Context, userId int) (domain.Room, error) {
+	return s.repo.FindByUserUnguessed(ctx, userId)
+}
+
+func (s *rooms) DeleteByUser(ctx context.Context, userId int) error {
+	return s.repo.DeleteByUser(ctx, userId)
 }
 
 func (s *rooms) UpdateGuessID(ctx context.Context, id string, guessId string) error {

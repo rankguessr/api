@@ -39,7 +39,20 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
 		if err != nil {
-			return err
+			return echo.ErrUnauthorized.Wrap(err)
+		}
+
+		_, err = rooms.FindByUserUnguessed(ctx, session.User.OsuID)
+		if err == nil {
+			log.Println("found")
+			return c.JSON(http.StatusBadRequest, utils.Map{
+				"message": "user is already in room",
+			})
+		}
+
+		err = rooms.DeleteByUser(ctx, session.User.OsuID)
+		if err != nil {
+			return echo.ErrInternalServerError.Wrap(err)
 		}
 
 		for range RoomStartMaxRetries {
@@ -86,7 +99,7 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 			}
 		}
 
-		return c.JSON(200, utils.Map{
+		return c.JSON(http.StatusBadRequest, utils.Map{
 			"message": "failed to find a score",
 		})
 	}
@@ -154,7 +167,7 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 			}
 		}
 
-		return c.JSON(200, utils.Map{
+		return c.JSON(http.StatusBadRequest, utils.Map{
 			"message": "failed to find a score",
 		})
 	}

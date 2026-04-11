@@ -17,6 +17,7 @@ type Rooms interface {
 	Create(ctx context.Context, playerId, userId, scoreId int) (domain.Room, error)
 
 	DeleteById(ctx context.Context, id string) error
+	DeleteByUser(ctx context.Context, userId int) error
 }
 
 type rooms struct {
@@ -25,6 +26,10 @@ type rooms struct {
 
 func NewRooms(repo repo.Rooms) Rooms {
 	return &rooms{repo: repo}
+}
+
+func (s *rooms) DeleteByUser(ctx context.Context, userId int) error {
+	return s.repo.DeleteByUser(ctx, userId)
 }
 
 func (s *rooms) UpdateGuessID(ctx context.Context, id string, guessId string) error {

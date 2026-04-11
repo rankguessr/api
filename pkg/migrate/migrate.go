@@ -114,6 +114,7 @@ var migrations = []Entry{
 				"user_id" INTEGER NOT NULL,
 				"player_id" INTEGER NOT NULL,
 				"score_id" BIGINT NOT NULL,
+				"global_rank" INTEGER NOT NULL,
 				"is_accepted" BOOLEAN NOT NULL DEFAULT FALSE,
 				"created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				"updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -123,19 +124,23 @@ var migrations = []Entry{
 			CREATE TABLE IF NOT EXISTS "submission_guesses" (
 				"id" CHAR(27) PRIMARY KEY,
 				"submission_id" CHAR(27) NOT NULL,
-				"guess_id" CHAR(27) NOT NULL,
+				"guess" CHAR(27) NOT NULL,
+				"actual_rank" INTEGER NOT NULL,
+				"elo" INTEGER NOT NULL,
+				"created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				"updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE,
 				FOREIGN KEY (guess_id) REFERENCES guesses(id) ON DELETE CASCADE
 			);
 
 			CREATE TABLE IF NOT EXISTS "submission_rooms" (
 				"id" CHAR(27) PRIMARY KEY,
-				"user_id" INTEGER NOT NULL,
+				"user_id" INTEGER NOT NULL UNIQUE,
 				"submission_id" CHAR(27) NOT NULL,
-				"guess_id" CHAR(27) NOT NULL,
+				"guess_id" CHAR(27),
 				FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE,
 				FOREIGN KEY (user_id) REFERENCES users(osu_id) ON DELETE CASCADE,
-				FOREIGN KEY (guess_id) REFERENCES guesses(id) ON DELETE CASCADE
+				FOREIGN KEY (guess_id) REFERENCES submission_guesses(id) ON DELETE CASCADE
 			);
 		`,
 	},

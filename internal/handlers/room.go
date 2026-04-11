@@ -42,6 +42,13 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 			return err
 		}
 
+		_, err = rooms.FindByUser(ctx, session.User.OsuID)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, utils.Map{
+				"message": "user is already in room",
+			})
+		}
+
 		for range RoomStartMaxRetries {
 			tryFind := func() (string, error) {
 				p, err := player.FindRandom(ctx)

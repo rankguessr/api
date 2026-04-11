@@ -54,23 +54,23 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 					scores[i], scores[j] = scores[j], scores[i]
 				}
 
-				score, err := findWithReplay(scores)
+				s, err := findWithReplay(scores)
 				if err != nil {
 					return "", err
 				}
 
 				// check if score is valid & exists
-				_, err = client.GetScore(ctx, session.AccessToken, score.ID)
+				score, err := client.GetScore(ctx, session.AccessToken, s.ID)
 				if err != nil {
 					return "", err
 				}
 
-				s, err := rooms.Create(ctx, p.OsuId, session.User.OsuID, score.ID)
+				room, err := rooms.Create(ctx, score.User.ID, session.User.OsuID, score.ID)
 				if err != nil {
 					return "", err
 				}
 
-				return s.ID, nil
+				return room.ID, nil
 			}
 
 			roomId, err := tryFind()
@@ -114,18 +114,18 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 					scores[i], scores[j] = scores[j], scores[i]
 				}
 
-				score, err := findWithReplay(scores)
+				s, err := findWithReplay(scores)
 				if err != nil {
 					return osuapi.Score{}, err
 				}
 
 				// check if score is valid & exists
-				_, err = client.GetScore(ctx, session.AccessToken, score.ID)
+				score, err := client.GetScore(ctx, session.AccessToken, s.ID)
 				if err != nil {
 					return osuapi.Score{}, err
 				}
 
-				_, err = rooms.UpdateScore(ctx, roomId, p.OsuId, score.ID)
+				_, err = rooms.UpdateScore(ctx, roomId, score.User.ID, score.ID)
 				if err != nil {
 					return osuapi.Score{}, err
 				}

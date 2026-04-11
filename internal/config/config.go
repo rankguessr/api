@@ -7,6 +7,7 @@ import (
 )
 
 type Config struct {
+	PORT            string `env:"PORT,required"`
 	AppURL          string `env:"APP_URL,required"`
 	WebURL          string `env:"WEB_URL,required"`
 	OsuClientID     string `env:"OSU_CLIENT_ID,required"`

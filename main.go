@@ -35,16 +35,7 @@ func main() {
 			{
 				Name:  "start",
 				Usage: "start rankguessr api",
-				Flags: []cli.Flag{
-					&cli.IntFlag{
-						Name:  "port",
-						Value: 8080,
-						Usage: "api port",
-					},
-				},
 				Action: func(ctx context.Context, c *cli.Command) error {
-					port := c.Int("port")
-
 					cfg, err := config.Read()
 					if err != nil {
 						log.Fatalf("failed to read config: %v", err)
@@ -137,7 +128,7 @@ func main() {
 						room.POST("/start", handlers.RoomStart(playerService, roomsService, client))
 					}
 
-					return e.Start(fmt.Sprintf(":%d", port))
+					return e.Start(fmt.Sprintf(":%s", cfg.PORT))
 				},
 			},
 			{

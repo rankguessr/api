@@ -102,6 +102,7 @@ func (c *Client) GetUserScores(ctx context.Context, accessToken string, userId i
 	vals := url.Values{}
 	vals.Set("mode", "osu")
 	vals.Set("limit", "5")
+	vals.Set("offset", "0")
 
 	path := fmt.Sprintf("/users/%d/scores/best?%s", userId, vals.Encode())
 	req, err := NewAPIv2Request(ctx, "GET", path, nil)

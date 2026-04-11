@@ -11,6 +11,7 @@ import (
 	"github.com/rankguessr/api/internal/service"
 	"github.com/rankguessr/api/pkg/domain"
 	"github.com/rankguessr/api/pkg/osuapi"
+	"github.com/rankguessr/api/pkg/ranking"
 	"github.com/rankguessr/api/pkg/utils"
 	"github.com/wieku/rplpa"
 )
@@ -18,18 +19,19 @@ import (
 const RoomStartMaxRetries = 5
 
 func findWithReplay(scores []osuapi.Score) (osuapi.Score, error) {
-	if len(scores) == 0 {
-		return osuapi.Score{}, errors.New("no replays available in top plays")
-	}
+	for range len(scores) {
+		idx := rand.Intn(len(scores))
+		score := scores[idx]
 
-	idx := rand.Intn(len(scores))
-	score := scores[idx]
-	if score.Replay() {
+		if !score.Replay() {
+			continue
+		}
+
 		log.Printf("returning score %d\n", idx)
 		return score, nil
 	}
 
-	return findWithReplay(append(scores[idx:], scores[idx+1:]...))
+	return osuapi.Score{}, errors.New("no replays available in top plays")
 }
 
 func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Client) echo.HandlerFunc {
@@ -274,6 +276,10 @@ func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
+		if req.Guess >= 3000000 {
+			return echo.NewHTTPError(http.StatusBadRequest, "guess must be less than 3 million")
+		}
+
 		if room.UserID != session.User.OsuID {
 			return echo.ErrUnauthorized
 		}
@@ -292,10 +298,20 @@ func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		guess, err := guesses.Create(
+		newElo, guess, err := guesses.Create(
 			ctx, session.User.OsuID, player.ID, req.Guess,
 			player.Statistics.GlobalRank, room.ScoreID, score.BeatmapID, score.Beatmap.BeatmapSetId,
 		)
+
+		if errors.Is(err, ranking.ErrRangeNotFound) {
+			err := rooms.DeleteById(ctx, roomId)
+			if err != nil {
+				return echo.ErrInternalServerError.Wrap(err)
+			}
+
+			return echo.NewHTTPError(http.StatusInternalServerError, "actual rank is out of range")
+		}
+
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}
@@ -306,8 +322,9 @@ func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.
 		}
 
 		return c.JSON(200, utils.Map{
-			"guess":  guess,
-			"player": player,
+			"guess":   guess,
+			"player":  player,
+			"new_elo": newElo,
 		})
 	}
 }

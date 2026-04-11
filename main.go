@@ -43,7 +43,16 @@ func main() {
 
 					client := osuapi.NewClient(cfg.OsuClientID, cfg.OsuClientSecret, cfg.AppURL)
 
-					pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+					dbCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+					if err != nil {
+						log.Fatal("failed to parse database url: ", err)
+					}
+
+					dbCfg.MaxConns = 10
+					dbCfg.MaxConnLifetime = 30 * time.Minute
+					dbCfg.MaxConnIdleTime = 5 * time.Minute
+
+					pool, err := pgxpool.NewWithConfig(ctx, dbCfg)
 					if err != nil {
 						log.Fatal("failed to open db connection: ", err)
 					}
@@ -107,6 +116,7 @@ func main() {
 					{
 						auth.GET("/login", handlers.AuthLogin(cfg))
 						auth.GET("/callback", handlers.AuthCallback(cfg, client, userService, sessionsService))
+						auth.GET("/logout", handlers.AuthLogout(cfg))
 					}
 
 					user := e.Group("/user")

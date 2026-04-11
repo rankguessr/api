@@ -98,3 +98,11 @@ func AuthCallback(cfg *config.Config, client *osuapi.Client, users service.User,
 		return c.Redirect(302, cfg.WebURL)
 	}
 }
+
+func AuthLogout(cfg *config.Config) echo.HandlerFunc {
+	return func(c *echo.Context) error {
+		utils.UnsetSessionCookie(c, cfg.WebDomain())
+
+		return c.Redirect(http.StatusFound, cfg.WebURL)
+	}
+}

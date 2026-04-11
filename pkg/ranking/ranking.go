@@ -27,6 +27,8 @@ var ranges = []Range{
 	{From: 1_500_000, To: 3_000_000},
 }
 
+var ErrRangeNotFound = errors.New("range not found")
+
 const multiplier = 5000
 
 func getRange(actual int) (Range, error) {
@@ -36,7 +38,7 @@ func getRange(actual int) (Range, error) {
 		}
 	}
 
-	return Range{}, errors.New("unexpected rank value, out of range")
+	return Range{}, ErrRangeNotFound
 }
 
 func Calculate(guess, actual int) (int, error) {

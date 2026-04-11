@@ -17,7 +17,7 @@ type Guess interface {
 	FindById(ctx context.Context, id string) (domain.Guess, error)
 	FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.Guess, error)
 
-	Create(ctx context.Context, userId, playerId, guess, actualRank, scoreId, beatmapId, beatmapSetId int) (domain.Guess, error)
+	Create(ctx context.Context, userId, playerId, guess, actualRank, scoreId, beatmapId, beatmapSetId int) (int, domain.Guess, error)
 }
 
 type guess struct {
@@ -44,10 +44,10 @@ func (g *guess) FindTopFromDate(ctx context.Context, from time.Time, limit int) 
 	return g.repo.FindTopFromDate(ctx, from, limit)
 }
 
-func (g *guess) Create(ctx context.Context, userId, playerId, guess, actualRank, scoreId, beatmapId, beatmapSetId int) (domain.Guess, error) {
+func (g *guess) Create(ctx context.Context, userId, playerId, guess, actualRank, scoreId, beatmapId, beatmapSetId int) (int, domain.Guess, error) {
 	elo, err := ranking.Calculate(guess, actualRank)
 	if err != nil {
-		return domain.Guess{}, err
+		return 0, domain.Guess{}, err
 	}
 
 	return g.repo.Create(ctx, userId, playerId, guess, actualRank, elo, scoreId, beatmapId, beatmapSetId)

@@ -13,6 +13,7 @@ type Rooms interface {
 	FindByID(ctx context.Context, id string) (domain.Room, error)
 	FindByUser(ctx context.Context, userId int) (domain.Room, error)
 	Create(ctx context.Context, playerId, userId, scoreId int) (domain.Room, error)
+	DeleteById(ctx context.Context, id string) error
 
 	UpdateGuessID(ctx context.Context, id string, guessId string) error
 	UpdateScore(ctx context.Context, id string, playerId, scoreId int, guessId *string) (domain.Room, error)
@@ -26,6 +27,13 @@ var rowToRoom = pgx.RowToStructByName[domain.Room]
 
 func NewRooms(pool *pgxpool.Pool) Rooms {
 	return &rooms{pool: pool}
+}
+
+func (s *rooms) DeleteById(ctx context.Context, id string) error {
+	_, err := s.pool.Exec(ctx, `
+		DELETE FROM rooms WHERE id = $1
+	`, id)
+	return err
 }
 
 func (s *rooms) FindByUser(ctx context.Context, userId int) (domain.Room, error) {

@@ -20,7 +20,7 @@ type Guesses interface {
 	FindByUser(ctx context.Context, userId, limit int) ([]domain.Guess, error)
 	FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.Guess, error)
 
-	Create(ctx context.Context, userId, playerId, guess, actualRank, elo, scoreId, beatmapId, beatmapSetId int) (domain.Guess, error)
+	Create(ctx context.Context, userId, playerId, guess, actualRank, elo, scoreId, beatmapId, beatmapSetId int) (int, domain.Guess, error)
 }
 
 type guesses struct {
@@ -87,10 +87,11 @@ const createGuessQuery = `
 	VALUES (@id, @userId, @playerId, @guess, @actualRank, @elo, @beatmapId, @beatmapSetId, @scoreId) RETURNING *
 `
 
-func (g *guesses) Create(ctx context.Context, userId, playerId, guess, actualRank, elo, scoreId, beatmapId, beatmapSetId int) (domain.Guess, error) {
+// returns new elo & created guess
+func (g *guesses) Create(ctx context.Context, userId, playerId, guess, actualRank, elo, scoreId, beatmapId, beatmapSetId int) (int, domain.Guess, error) {
 	tx, err := g.pool.Begin(ctx)
 	if err != nil {
-		return domain.Guess{}, err
+		return 0, domain.Guess{}, err
 	}
 
 	rows, err := tx.Query(ctx, createGuessQuery, pgx.NamedArgs{
@@ -107,22 +108,24 @@ func (g *guesses) Create(ctx context.Context, userId, playerId, guess, actualRan
 	})
 	if err != nil {
 		tx.Rollback(ctx)
-		return domain.Guess{}, err
+		return 0, domain.Guess{}, err
 	}
 
 	guessRes, err := pgx.CollectOneRow(rows, rowToGuess)
 	if err != nil {
 		tx.Rollback(ctx)
-		return domain.Guess{}, err
+		return 0, domain.Guess{}, err
 	}
 
-	_, err = tx.Exec(ctx, "UPDATE users SET elo = GREATEST(0, elo + $1) WHERE osu_id = $2", elo, userId)
+	rows, err = tx.Query(ctx, "UPDATE users SET elo = GREATEST(0, elo + $1) WHERE osu_id = $2 RETURNING elo", elo, userId)
 	if err != nil {
 		tx.Rollback(ctx)
-		return domain.Guess{}, err
+		return 0, domain.Guess{}, err
 	}
 
-	return guessRes, tx.Commit(ctx)
+	newElo, err := pgx.CollectOneRow(rows, pgx.RowTo[int])
+
+	return newElo, guessRes, tx.Commit(ctx)
 }
 
 func (g *guesses) FindByUser(ctx context.Context, userId, limit int) ([]domain.Guess, error) {

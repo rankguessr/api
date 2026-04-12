@@ -104,6 +104,12 @@ var migrations = []Entry{
 			ALTER TABLE "sessions" ALTER COLUMN refresh_token TYPE BYTEA USING refresh_token::bytea;
 		`,
 	},
+	{
+		Version: "v0.0.9",
+		SQL: `
+			ALTER TABLE "guesses" DROP CONSTRAINT guesses_player_id_fkey;
+		`,
+	},
 }
 
 var latest = migrations[len(migrations)-1].Version

@@ -104,6 +104,7 @@ func main() {
 						AllowHeaders:     []string{echo.HeaderAccept, echo.HeaderOrigin, echo.HeaderContentType},
 					}))
 					e.Use(rmiddleware.RequestLogger(logger))
+					e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(60.0)))
 					e.Use(middleware.ContextTimeout(time.Second * 30))
 					sessions := rmiddleware.Session(client, sessionsService)
 
@@ -123,13 +124,13 @@ func main() {
 					{
 						user.Use(sessions)
 						user.GET("/me", handlers.AuthMe(userService))
-						user.GET("/current-room", handlers.UserGetCurrentRoom(roomsService, client))
-						user.GET("/latest", handlers.UserGetLatest(userService, guessService))
+						user.GET("/rooms", handlers.UserGetRoomsData(roomsService, client, guessService))
 					}
 
 					room := e.Group("/room")
 					{
 						room.Use(sessions)
+						room.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20.0)))
 						room.GET("/:id/score", handlers.RoomGetScore(roomsService, guessService, client))
 						room.GET("/replay/:filename", handlers.RoomDownloadReplay(roomsService, client))
 

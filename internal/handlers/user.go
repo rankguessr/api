@@ -10,7 +10,7 @@ import (
 	"github.com/rankguessr/api/pkg/utils"
 )
 
-func UserGetMe(user service.User) echo.HandlerFunc {
+func UserGetRoomsData(rooms service.Rooms, client *osuapi.Client, guesses service.Guess) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -18,34 +18,14 @@ func UserGetMe(user service.User) echo.HandlerFunc {
 			return echo.ErrUnauthorized.Wrap(err)
 		}
 
-		u, err := user.FindByOsuID(ctx, session.User.OsuID)
+		latest, err := guesses.FindByUser(ctx, session.User.OsuID, 10)
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, utils.Map{
-				"error": "failed to get user",
-			})
-		}
-
-		return c.JSON(http.StatusOK, utils.Map{
-			"elo":          u.Elo,
-			"osu_id":       u.OsuID,
-			"username":     u.Username,
-			"avatar_url":   u.AvatarURL,
-			"country_code": u.CountryCode,
-		})
-	}
-}
-
-func UserGetCurrentRoom(rooms service.Rooms, client *osuapi.Client) echo.HandlerFunc {
-	return func(c *echo.Context) error {
-		ctx := c.Request().Context()
-		session, err := utils.GetSession(c)
-		if err != nil {
-			return echo.ErrUnauthorized.Wrap(err)
+			return echo.ErrInternalServerError.Wrap(err)
 		}
 
 		room, err := rooms.FindByUserUnguessed(ctx, session.User.OsuID)
-		log.Println(err)
 		if err != nil {
+			log.Println(room)
 			return c.JSON(http.StatusOK, utils.Map{
 				"room": nil,
 			})
@@ -58,7 +38,10 @@ func UserGetCurrentRoom(rooms service.Rooms, client *osuapi.Client) echo.Handler
 				return echo.ErrInternalServerError.Wrap(err)
 			}
 
-			return echo.ErrInternalServerError.Wrap(err)
+			return c.JSON(http.StatusOK, utils.Map{
+				"room":   nil,
+				"latest": latest,
+			})
 		}
 
 		// TODO: add a mapper from score to anonymized
@@ -74,23 +57,7 @@ func UserGetCurrentRoom(rooms service.Rooms, client *osuapi.Client) echo.Handler
 					"statistics": score.Statistics,
 				},
 			},
+			"latest": latest,
 		})
-	}
-}
-
-func UserGetLatest(user service.User, guesses service.Guess) echo.HandlerFunc {
-	return func(c *echo.Context) error {
-		ctx := c.Request().Context()
-		session, err := utils.GetSession(c)
-		if err != nil {
-			return echo.ErrUnauthorized.Wrap(err)
-		}
-
-		latest, err := guesses.FindByUser(ctx, session.User.OsuID, 10)
-		if err != nil {
-			return echo.ErrInternalServerError.Wrap(err)
-		}
-
-		return c.JSON(http.StatusOK, latest)
 	}
 }

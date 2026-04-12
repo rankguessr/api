@@ -54,7 +54,13 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 					return "", err
 				}
 
-				score := scores[0]
+				scoreId := scores[0].ID
+				// check if score exists and warm up cache
+				score, err := client.GetScore(ctx, session.AccessToken, scoreId)
+				if err != nil {
+					return "", err
+				}
+
 				if score.PP == 0 {
 					return "", errors.New("score has 0 pp")
 				}
@@ -106,7 +112,13 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 					return osuapi.Score{}, err
 				}
 
-				score := scores[0]
+				scoreId := scores[0].ID
+				// check if score exists and warm up cache
+				score, err := client.GetScore(ctx, session.AccessToken, scoreId)
+				if err != nil {
+					return osuapi.Score{}, err
+				}
+
 				if score.PP == 0 {
 					return osuapi.Score{}, errors.New("score has 0 pp")
 				}
@@ -211,7 +223,7 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 
 		score, err := client.GetScore(ctx, session.AccessToken, room.ScoreID)
 		if err != nil {
-			log.Println("failed to fetch room score")
+			log.Println(err)
 			err := rooms.DeleteById(ctx, roomId)
 			if err != nil {
 				return err
@@ -275,12 +287,12 @@ func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.
 			return echo.NewHTTPError(http.StatusBadRequest, "room is already closed")
 		}
 
-		player, err := client.GetUser(ctx, session.AccessToken, room.PlayerID)
+		score, err := client.GetScore(ctx, session.AccessToken, room.ScoreID)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		score, err := client.GetScore(ctx, session.AccessToken, room.ScoreID)
+		player, err := client.GetUser(ctx, session.AccessToken, score.User.ID)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}

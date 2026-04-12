@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/url"
 	"strconv"
 	"strings"
@@ -98,30 +99,33 @@ func (c *Client) GetUser(ctx context.Context, accessToken string, userId int) (U
 	return DoAndParse[UserExtended](req)
 }
 
-func (c *Client) GetUsers(ctx context.Context, accessToken string, userIds []int) ([]UserExtended, error) {
-	ids := make([]string, len(userIds))
-	for i, id := range userIds {
-		ids[i] = strconv.Itoa(id)
+type BatchResponse struct {
+	Users []UserFromBatch `json:"users"`
+}
+
+func (c *Client) GetUsers(ctx context.Context, accessToken string, userIds []int) (BatchResponse, error) {
+	vals := url.Values{}
+	vals.Set("include_variant_statistics", "true")
+	for _, id := range userIds {
+		vals.Add("ids[]", strconv.Itoa(id))
 	}
 
-	vals := url.Values{}
-	vals.Set("ids", strings.Join(ids, ","))
-	vals.Set("include_variant_statistics", "true")
+	log.Println(vals.Encode())
 
 	req, err := NewAPIv2Request(ctx, "GET", fmt.Sprintf("/users?%s", vals.Encode()), nil)
 	if err != nil {
-		return nil, err
+		return BatchResponse{}, err
 	}
 
 	SetAuthHeader(req, accessToken)
-	return DoAndParse[[]UserExtended](req)
+	return DoAndParse[BatchResponse](req)
 }
 
-func (c *Client) GetUserScores(ctx context.Context, accessToken string, userId int) ([]Score, error) {
+func (c *Client) GetUserScores(ctx context.Context, accessToken string, userId int, limit, offset int) ([]Score, error) {
 	vals := url.Values{}
 	vals.Set("mode", "osu")
-	vals.Set("limit", "20")
-	vals.Set("offset", "0")
+	vals.Set("limit", strconv.Itoa(limit))
+	vals.Set("offset", strconv.Itoa(offset))
 
 	path := fmt.Sprintf("/users/%d/scores/best?%s", userId, vals.Encode())
 	req, err := NewAPIv2Request(ctx, "GET", path, nil)

@@ -9,6 +9,7 @@ import (
 
 type Players interface {
 	FindRandom(ctx context.Context) (domain.Player, error)
+	Find(ctx context.Context, limit, page int) ([]domain.Player, error)
 	CreateMany(ctx context.Context, ids []domain.PlayerCreate) (int64, error)
 }
 
@@ -18,6 +19,10 @@ type players struct {
 
 func NewPlayer(repo repo.Players) Players {
 	return &players{repo: repo}
+}
+
+func (p *players) Find(ctx context.Context, limit, page int) ([]domain.Player, error) {
+	return p.repo.Find(ctx, limit, page*limit)
 }
 
 func (p *players) FindRandom(ctx context.Context) (domain.Player, error) {

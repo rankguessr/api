@@ -17,22 +17,7 @@ import (
 )
 
 const RoomStartMaxRetries = 5
-
-func findWithReplay(scores []osuapi.Score) (osuapi.Score, error) {
-	for range len(scores) {
-		idx := rand.Intn(len(scores))
-		score := scores[idx]
-
-		if !score.Replay() {
-			continue
-		}
-
-		log.Printf("returning score %d\n", idx)
-		return score, nil
-	}
-
-	return osuapi.Score{}, errors.New("no replays available in top plays")
-}
+const ScoresLimit = 20
 
 func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Client) echo.HandlerFunc {
 	return func(c *echo.Context) error {
@@ -62,27 +47,14 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 					return "", err
 				}
 
-				scores, err := client.GetUserScores(ctx, session.AccessToken, p.OsuId)
-				if err != nil {
+				scoreIdx := rand.Intn(ScoresLimit)
+
+				scores, err := client.GetUserScores(ctx, session.AccessToken, p.OsuId, 1, scoreIdx)
+				if err != nil || len(scores) == 0 {
 					return "", err
 				}
 
-				for i := range scores {
-					j := rand.Intn(i + 1)
-					scores[i], scores[j] = scores[j], scores[i]
-				}
-
-				s, err := findWithReplay(scores)
-				if err != nil {
-					return "", err
-				}
-
-				// check if score is valid & exists
-				score, err := client.GetScore(ctx, session.AccessToken, s.ID)
-				if err != nil {
-					return "", err
-				}
-
+				score := scores[0]
 				room, err := rooms.Create(ctx, score.User.ID, session.User.OsuID, score.ID)
 				if err != nil {
 					return "", err
@@ -122,27 +94,14 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 					return osuapi.Score{}, err
 				}
 
-				scores, err := client.GetUserScores(ctx, session.AccessToken, p.OsuId)
-				if err != nil {
+				scoreIdx := rand.Intn(ScoresLimit)
+
+				scores, err := client.GetUserScores(ctx, session.AccessToken, p.OsuId, 1, scoreIdx)
+				if err != nil || len(scores) == 0 {
 					return osuapi.Score{}, err
 				}
 
-				for i := range scores {
-					j := rand.Intn(i + 1)
-					scores[i], scores[j] = scores[j], scores[i]
-				}
-
-				s, err := findWithReplay(scores)
-				if err != nil {
-					return osuapi.Score{}, err
-				}
-
-				// check if score is valid & exists
-				score, err := client.GetScore(ctx, session.AccessToken, s.ID)
-				if err != nil {
-					return osuapi.Score{}, err
-				}
-
+				score := scores[0]
 				_, err = rooms.UpdateScore(ctx, roomId, score.User.ID, score.ID)
 				if err != nil {
 					return osuapi.Score{}, err

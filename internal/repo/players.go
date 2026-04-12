@@ -12,6 +12,7 @@ import (
 var rowToPlayer = pgx.RowToStructByName[domain.Player]
 
 type Players interface {
+	Find(ctx context.Context, limit, offset int) ([]domain.Player, error)
 	FindRandom(ctx context.Context) (domain.Player, error)
 	CreateMany(ctx context.Context, ids []domain.PlayerCreate) (int64, error)
 }
@@ -22,6 +23,21 @@ type players struct {
 
 func NewPlayers(pool *pgxpool.Pool) Players {
 	return &players{pool: pool}
+}
+
+func (p *players) Find(ctx context.Context, limit, offset int) ([]domain.Player, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT *
+		FROM players
+		WHERE source = 'multi'
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2
+	`, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	return pgx.CollectRows(rows, rowToPlayer)
 }
 
 const findRandomQuery = `

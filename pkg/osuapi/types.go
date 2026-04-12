@@ -42,8 +42,18 @@ type User struct {
 	Statistics  UserStatistics `json:"statistics"`
 }
 
+// TODO
 type UserFromBatch struct {
-	User
+	ID                 int       `json:"id"`
+	Username           string    `json:"username"`
+	AvatarURL          string    `json:"avatar_url"`
+	CountryCode        string    `json:"country_code"`
+	IsActive           bool      `json:"is_active"`
+	IsBot              bool      `json:"is_bot"`
+	IsDeleted          bool      `json:"is_deleted"`
+	IsOnline           bool      `json:"is_online"`
+	IsSupporter        bool      `json:"is_supporter"`
+	LastVisit          time.Time `json:"last_visit"`
 	StatisticsRulesets struct {
 		Standard UserStatistics `json:"osu"`
 	} `json:"statistics_rulesets"`

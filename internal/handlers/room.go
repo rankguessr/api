@@ -55,6 +55,10 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 				}
 
 				score := scores[0]
+				if score.PP == 0 {
+					return "", errors.New("score has 0 pp")
+				}
+
 				room, err := rooms.Create(ctx, score.User.ID, session.User.OsuID, score.ID)
 				if err != nil {
 					return "", err
@@ -87,6 +91,7 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 
 		roomId := c.Param("id")
 
+		// TODO: remove copy pasted bullshit
 		for range RoomStartMaxRetries {
 			tryFind := func() (osuapi.Score, error) {
 				p, err := players.FindRandom(ctx)
@@ -102,6 +107,10 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 				}
 
 				score := scores[0]
+				if score.PP == 0 {
+					return osuapi.Score{}, errors.New("score has 0 pp")
+				}
+
 				_, err = rooms.UpdateScore(ctx, roomId, score.User.ID, score.ID)
 				if err != nil {
 					return osuapi.Score{}, err

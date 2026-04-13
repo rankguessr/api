@@ -23,6 +23,7 @@ import (
 	"github.com/rankguessr/api/pkg/domain"
 	"github.com/rankguessr/api/pkg/migrate"
 	"github.com/rankguessr/api/pkg/osuapi"
+	"github.com/redis/go-redis/v9"
 	"github.com/urfave/cli/v3"
 )
 
@@ -37,8 +38,6 @@ func main() {
 					if err != nil {
 						log.Fatalf("failed to read config: %v", err)
 					}
-
-					client := osuapi.NewClient(cfg.OsuClientID, cfg.OsuClientSecret, cfg.AppURL)
 
 					dbCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 					if err != nil {
@@ -65,6 +64,20 @@ func main() {
 						log.Fatal("failed to run migrations: ", err)
 					}
 
+					opt, err := redis.ParseURL(cfg.RedisURL)
+					if err != nil {
+						log.Fatal("failed to parse redis conn string")
+					}
+
+					rdb := redis.NewClient(opt)
+
+					err = rdb.Ping(ctx).Err()
+					if err != nil {
+						log.Fatal("failed to ping redis: ", err)
+					}
+
+					client := osuapi.NewClient(cfg.OsuClientID, cfg.OsuClientSecret)
+
 					userRepo := repo.NewUsers(pool)
 					userService := service.NewUser(userRepo)
 
@@ -72,7 +85,7 @@ func main() {
 					playerService := service.NewPlayer(playerRepo)
 
 					roomsRepo := repo.NewRooms(pool)
-					roomsService := service.NewRooms(roomsRepo)
+					roomsService := service.NewRooms(roomsRepo, client, rdb)
 
 					guessRepo := repo.NewGuesses(pool)
 					guessService := service.NewGuess(guessRepo)
@@ -89,7 +102,6 @@ func main() {
 					}
 
 					handler := sentryslog.Option{
-						// Explicitly specify the levels that you want to be captured.
 						EventLevel: []slog.Level{slog.LevelError},
 						LogLevel:   []slog.Level{slog.LevelWarn, slog.LevelInfo, slog.LevelDebug},
 					}.NewSentryHandler(ctx)
@@ -112,11 +124,12 @@ func main() {
 					e.Use(sentryecho.New(sentryecho.Options{}))
 					e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(60.0)))
 					e.Use(middleware.ContextTimeout(time.Second * 30))
+
 					sessions := rmiddleware.Session(client, sessionsService)
 
 					{
 						e.GET("/health", handlers.HealthCheck)
-						e.GET("/stats", handlers.PublicStatsGet(guessService, userService))
+						e.GET("/stats", handlers.PublicStatsGet(guessService, userService, rdb))
 					}
 
 					auth := e.Group("/auth")
@@ -181,7 +194,7 @@ func main() {
 					playerRepo := repo.NewPlayers(pool)
 					playerSvc := service.NewPlayer(playerRepo)
 
-					client := osuapi.NewClient(osuClientId, osuClientSecret, "")
+					client := osuapi.NewClient(osuClientId, osuClientSecret)
 
 					t, err := client.GetClientAccessToken(ctx)
 					if err != nil {
@@ -277,7 +290,7 @@ func main() {
 							playerRepo := repo.NewPlayers(pool)
 							playerSvc := service.NewPlayer(playerRepo)
 
-							client := osuapi.NewClient(osuClientId, osuClientSecret, "")
+							client := osuapi.NewClient(osuClientId, osuClientSecret)
 
 							t, err := client.GetClientAccessToken(ctx)
 							if err != nil {

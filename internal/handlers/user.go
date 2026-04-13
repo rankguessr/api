@@ -31,17 +31,14 @@ func UserGetRoomsData(rooms service.Rooms, client *osuapi.Client, guesses servic
 			})
 		}
 
-		score, err := client.GetScore(ctx, session.AccessToken, room.ScoreID)
+		score, err := rooms.GetScore(ctx, session.AccessToken, room.ScoreID)
 		if err != nil {
 			err := rooms.DeleteById(ctx, room.ID)
 			if err != nil {
-				return echo.ErrInternalServerError.Wrap(err)
+				return err
 			}
 
-			return c.JSON(http.StatusOK, utils.Map{
-				"room":   nil,
-				"latest": latest,
-			})
+			return echo.ErrNotFound.Wrap(err)
 		}
 
 		// TODO: add a mapper from score to anonymized

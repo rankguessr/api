@@ -11,26 +11,24 @@ import (
 )
 
 type Client struct {
-	ClientID     string
-	ClientSecret string
-	AppURL       string
+	clientId     string
+	clientSecret string
 }
 
-func NewClient(clientID, clientSecret, appURL string) *Client {
+func NewClient(clientID, clientSecret string) *Client {
 	return &Client{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		AppURL:       appURL,
+		clientId:     clientID,
+		clientSecret: clientSecret,
 	}
 }
 
-func (c *Client) ExchangeToken(ctx context.Context, code string) (ExchangeTokenResponse, error) {
+func (c *Client) ExchangeToken(ctx context.Context, code, redirectUri string) (ExchangeTokenResponse, error) {
 	vals := url.Values{}
 	vals.Set("code", code)
-	vals.Set("client_id", c.ClientID)
-	vals.Set("client_secret", c.ClientSecret)
+	vals.Set("client_id", c.clientId)
+	vals.Set("client_secret", c.clientSecret)
 	vals.Set("grant_type", "authorization_code")
-	vals.Set("redirect_uri", fmt.Sprintf("%s/auth/callback", c.AppURL))
+	vals.Set("redirect_uri", fmt.Sprintf("%s/auth/callback", redirectUri))
 
 	body := strings.NewReader(vals.Encode())
 	req, err := NewWebRequest(ctx, "POST", "/oauth/token", body)
@@ -56,8 +54,8 @@ func (c *Client) GetMe(ctx context.Context, accessToken string) (UserExtended, e
 
 func (c *Client) TokenRefresh(ctx context.Context, refreshToken string) (ExchangeTokenResponse, error) {
 	vals := url.Values{}
-	vals.Set("client_id", c.ClientID)
-	vals.Set("client_secret", c.ClientSecret)
+	vals.Set("client_id", c.clientId)
+	vals.Set("client_secret", c.clientSecret)
 	vals.Set("grant_type", "refresh_token")
 	vals.Set("refresh_token", refreshToken)
 
@@ -67,13 +65,15 @@ func (c *Client) TokenRefresh(ctx context.Context, refreshToken string) (Exchang
 		return ExchangeTokenResponse{}, err
 	}
 
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	return DoAndParse[ExchangeTokenResponse](req)
 }
 
 func (c *Client) GetClientAccessToken(ctx context.Context) (ClientToken, error) {
 	vals := url.Values{}
-	vals.Set("client_id", c.ClientID)
-	vals.Set("client_secret", c.ClientSecret)
+	vals.Set("client_id", c.clientId)
+	vals.Set("client_secret", c.clientSecret)
 	vals.Set("grant_type", "client_credentials")
 	vals.Set("scope", "public")
 

@@ -3,9 +3,13 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/rankguessr/api/internal/repo"
+	"github.com/rankguessr/api/pkg/cache"
 	"github.com/rankguessr/api/pkg/domain"
+	"github.com/rankguessr/api/pkg/osuapi"
+	"github.com/redis/go-redis/v9"
 )
 
 type Rooms interface {
@@ -20,14 +24,38 @@ type Rooms interface {
 	DeleteById(ctx context.Context, id string) error
 	DeleteByUser(ctx context.Context, userId int) error
 	DeleteByUserUnguessed(ctx context.Context, userId int) error
+
+	// works for now, but should be moved to a separate service
+	GetScore(ctx context.Context, accessToken string, scoreId int) (osuapi.Score, error)
 }
 
 type rooms struct {
 	repo repo.Rooms
+	oapi *osuapi.Client
+	rdb  *redis.Client
 }
 
-func NewRooms(repo repo.Rooms) Rooms {
-	return &rooms{repo: repo}
+func NewRooms(repo repo.Rooms, oapi *osuapi.Client, rdb *redis.Client) Rooms {
+	return &rooms{repo: repo, oapi: oapi, rdb: rdb}
+}
+
+func (s *rooms) GetScore(ctx context.Context, accessToken string, scoreId int) (osuapi.Score, error) {
+	score, err := cache.GetScore(s.rdb, ctx, scoreId)
+	if err == nil {
+		return score, nil
+	}
+
+	score, err = s.oapi.GetScore(ctx, accessToken, scoreId)
+	if err != nil {
+		return osuapi.Score{}, err
+	}
+
+	err = cache.SetScore(s.rdb, ctx, score)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to set score cache")
+	}
+
+	return score, nil
 }
 
 func (s *rooms) DeleteByUserUnguessed(ctx context.Context, userId int) error {

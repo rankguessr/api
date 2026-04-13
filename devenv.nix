@@ -7,6 +7,7 @@
 }:
 
 {
+  # required in .env: OSU_CLIENT_ID, OSU_CLIENT_SECRET, SENTRY_DSN
   dotenv.enable = true;
 
   env.PORT = "8080";
@@ -14,25 +15,14 @@
   env.APP_URL = "http://localhost:8080";
   env.ENCRYPTION_KEY = "test-key-dont-use-in-production";
   env.DATABASE_URL = "postgres://postgres:postgres@127.0.0.1/rankguessr?sslmode=disable";
+  env.REDIS_URL = "redis://127.0.0.1:6379";
 
   packages = [
     pkgs.git
     pkgs.air
   ];
 
-  # git-hooks.hooks = {
-  #   govet = {
-  #     enable = true;
-  #     pass_filenames = false;
-  #   };
-  #   golangci-lint = {
-  #     enable = true;
-  #     pass_filenames = false;
-  #   };
-  # };
-
   languages.go.enable = true;
-  # languages.go.version = "1.25.5";
 
   services.postgres = {
     enable = true;
@@ -49,9 +39,15 @@
     '';
   };
 
+  services.redis = {
+    enable = true;
+    port = 6379;
+    bind = "127.0.0.1";
+  };
+
   processes = {
     backend = {
-      exec = "air";
+      exec = "go build -o guessr . && ./guessr start";
     };
   };
 }

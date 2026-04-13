@@ -54,25 +54,19 @@ func AuthCallback(cfg *config.Config, client *osuapi.Client, users service.User,
 		state := c.QueryParam("state")
 
 		if code == "" || state == "" {
-			return c.JSON(http.StatusBadRequest, utils.Map{
-				"error": "missing code or state",
-			})
+			return echo.NewHTTPError(http.StatusBadRequest, "missing code or state")
 		}
 
 		authState, err := utils.ReadAuthStateCookie(c)
 		if err != nil {
-			return c.JSON(http.StatusUnauthorized, utils.Map{
-				"error": "invalid auth state",
-			})
+			return echo.NewHTTPError(http.StatusUnauthorized, "invalid auth state")
 		}
 
 		if authState != state {
-			return c.JSON(http.StatusUnauthorized, utils.Map{
-				"error": "auth state mismatch",
-			})
+			return echo.NewHTTPError(http.StatusUnauthorized, "auth state mismatch")
 		}
 
-		token, err := client.ExchangeToken(ctx, code)
+		token, err := client.ExchangeToken(ctx, code, cfg.AppURL)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}

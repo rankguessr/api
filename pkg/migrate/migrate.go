@@ -110,6 +110,12 @@ var migrations = []Entry{
 			ALTER TABLE "guesses" DROP CONSTRAINT guesses_player_id_fkey;
 		`,
 	},
+	{
+		Version: "v0.1.0",
+		SQL: `
+			ALTER TABLE "rooms" DROP CONSTRAINT rooms_player_id_fkey;
+		`,
+	},
 }
 
 var latest = migrations[len(migrations)-1].Version

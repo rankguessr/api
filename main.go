@@ -8,6 +8,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/getsentry/sentry-go"
+	sentryecho "github.com/getsentry/sentry-go/echo"
+	sentryslog "github.com/getsentry/sentry-go/slog"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v5"
@@ -22,12 +25,6 @@ import (
 	"github.com/rankguessr/api/pkg/osuapi"
 	"github.com/urfave/cli/v3"
 )
-
-var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
-
-func init() {
-	slog.SetDefault(logger)
-}
 
 func main() {
 	cmd := &cli.Command{
@@ -83,27 +80,36 @@ func main() {
 					sessionsRepo := repo.NewSessions(pool)
 					sessionsService := service.NewSessions(cfg, sessionsRepo)
 
-					// sch, err := jobs.NewScheduler(client, playerService)
-					// if err != nil {
-					// 	log.Fatal("failed to create scheduler: ", err)
-					// }
+					if err := sentry.Init(sentry.ClientOptions{
+						Dsn:           cfg.SentryDSN,
+						EnableLogs:    true,
+						EnableTracing: true,
+					}); err != nil {
+						fmt.Printf("Sentry initialization failed: %v\n", err)
+					}
 
-					// err = sch.RegisterJobs()
-					// if err != nil {
-					// 	log.Fatal("failed to register jobs: ", err)
-					// }
+					handler := sentryslog.Option{
+						// Explicitly specify the levels that you want to be captured.
+						EventLevel: []slog.Level{slog.LevelError},
+						LogLevel:   []slog.Level{slog.LevelWarn, slog.LevelInfo, slog.LevelDebug},
+					}.NewSentryHandler(ctx)
 
-					// go sch.Start()
+					logger := slog.New(handler)
+
+					defer sentry.Flush(2 * time.Second)
+
+					slog.SetDefault(logger)
 
 					e := echo.New()
 					e.Use(middleware.Recover())
 					e.Use(middleware.RequestID())
+					e.Use(rmiddleware.RequestLogger())
 					e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 						AllowCredentials: true,
 						AllowOrigins:     []string{cfg.WebURL},
 						AllowHeaders:     []string{echo.HeaderAccept, echo.HeaderOrigin, echo.HeaderContentType},
 					}))
-					e.Use(rmiddleware.RequestLogger(logger))
+					e.Use(sentryecho.New(sentryecho.Options{}))
 					e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(60.0)))
 					e.Use(middleware.ContextTimeout(time.Second * 30))
 					sessions := rmiddleware.Session(client, sessionsService)

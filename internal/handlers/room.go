@@ -166,17 +166,17 @@ func RoomDownloadReplay(rooms service.Rooms, client *osuapi.Client) echo.Handler
 		roomId := strings.TrimSuffix(filename, ".osr")
 		room, err := rooms.FindByID(ctx, roomId)
 		if err != nil {
-			return err
+			return echo.ErrNotFound.Wrap(err)
 		}
 
 		replay, err := client.DownloadReplay(ctx, session.AccessToken, room.ScoreID)
 		if err != nil {
-			return err
+			return echo.ErrInternalServerError.Wrap(err)
 		}
 
 		r, err := rplpa.ParseReplay(replay)
 		if err != nil {
-			return err
+			return echo.ErrInternalServerError.Wrap(err)
 		}
 
 		r.Username = "rankguessr"
@@ -187,7 +187,7 @@ func RoomDownloadReplay(rooms service.Rooms, client *osuapi.Client) echo.Handler
 
 		anonymized, err := rplpa.WriteReplay(r)
 		if err != nil {
-			return err
+			return echo.ErrInternalServerError.Wrap(err)
 		}
 
 		return c.Blob(200, "application/x-osu-replay", anonymized)
@@ -205,7 +205,7 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 		roomId := c.Param("id")
 		room, err := rooms.FindByID(ctx, roomId)
 		if err != nil {
-			return err
+			return echo.ErrNotFound.Wrap(err)
 		}
 
 		if room.UserID != session.User.OsuID {
@@ -223,13 +223,12 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 
 		score, err := client.GetScore(ctx, session.AccessToken, room.ScoreID)
 		if err != nil {
-			log.Println(err)
 			err := rooms.DeleteById(ctx, roomId)
 			if err != nil {
 				return err
 			}
 
-			return err
+			return echo.ErrNotFound.Wrap(err)
 		}
 
 		var user *osuapi.User

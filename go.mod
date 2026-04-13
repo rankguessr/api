@@ -14,6 +14,9 @@ require (
 
 require (
 	github.com/bnch/uleb128 v0.0.0-20160221084957-fac1fe18ad59 // indirect
+	github.com/getsentry/sentry-go v0.45.1 // indirect
+	github.com/getsentry/sentry-go/echo v0.45.1 // indirect
+	github.com/getsentry/sentry-go/slog v0.45.1 // indirect
 	github.com/itchio/lzma v0.0.0-20190703113020-d3e24e3e3d49 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
@@ -21,6 +24,7 @@ require (
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 )

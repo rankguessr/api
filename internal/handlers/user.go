@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/labstack/echo/v5"
@@ -25,9 +24,9 @@ func UserGetRoomsData(rooms service.Rooms, client *osuapi.Client, guesses servic
 
 		room, err := rooms.FindByUserUnguessed(ctx, session.User.OsuID)
 		if err != nil {
-			log.Println(room)
 			return c.JSON(http.StatusOK, utils.Map{
-				"room": nil,
+				"room":   nil,
+				"latest": latest,
 			})
 		}
 

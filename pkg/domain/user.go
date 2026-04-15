@@ -5,11 +5,14 @@ import (
 )
 
 type User struct {
-	OsuID       int       `json:"osu_id"`
-	Username    string    `json:"username"`
-	AvatarURL   string    `json:"avatar_url"`
-	CountryCode string    `json:"country_code"`
-	Elo         uint      `json:"elo"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	Elo              uint      `json:"elo"`
+	OsuID            int       `json:"osu_id"`
+	Username         string    `json:"username"`
+	AvatarURL        string    `json:"avatar_url"`
+	CountryCode      string    `json:"country_code"`
+	IsAdmin          bool      `json:"is_admin"`
+	AvailableGuesses uint      `json:"available_guesses"`
+	RefilledAt       time.Time `json:"refilled_at"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }

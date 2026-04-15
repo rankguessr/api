@@ -11,7 +11,7 @@ devenv.local.yaml
 
 .env
 tmp
-guessr
+bin
 
 .DS_Store
 20260411.bak

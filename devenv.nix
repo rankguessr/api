@@ -24,6 +24,12 @@
 
   languages.go.enable = true;
 
+  services.redis = {
+    enable = true;
+    port = 6379;
+    bind = "127.0.0.1";
+  };
+
   services.postgres = {
     enable = true;
     initialDatabases = [
@@ -39,15 +45,9 @@
     '';
   };
 
-  services.redis = {
-    enable = true;
-    port = 6379;
-    bind = "127.0.0.1";
-  };
-
   processes = {
     backend = {
-      exec = "go build -o guessr . && ./guessr start";
+      exec = "go build -o bin/guessr cmd/guessr && ./bin/guessr start --dev";
     };
   };
 }

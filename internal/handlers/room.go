@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
 	"strings"
 
 	"github.com/labstack/echo/v5"
+	"github.com/rankguessr/api/internal/config"
 	"github.com/rankguessr/api/internal/service"
 	"github.com/rankguessr/api/pkg/domain"
 	"github.com/rankguessr/api/pkg/osuapi"
@@ -252,10 +254,11 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 }
 
 type submitRequest struct {
-	Guess int `json:"guess"`
+	Guess int    `json:"guess"`
+	Token string `json:"token"`
 }
 
-func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.Client) echo.HandlerFunc {
+func RoomSubmitGuess(cfg *config.Config, rooms service.Rooms, guesses service.Guess, client *osuapi.Client) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -266,6 +269,16 @@ func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.
 		var req submitRequest
 		if err := c.Bind(&req); err != nil {
 			return echo.ErrBadRequest.Wrap(err)
+		}
+
+		err = utils.ValidateTurnstile(req.Token, cfg.TurnstileSecret)
+		if err != nil {
+			var tuErr *utils.TurnstileError
+			if errors.As(err, &tuErr) {
+				return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("turnstile validation error: %s", tuErr.Error()))
+			}
+
+			return echo.ErrInternalServerError.Wrap(err)
 		}
 
 		roomId := c.Param("id")

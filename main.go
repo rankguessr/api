@@ -153,7 +153,7 @@ func main() {
 						room.GET("/:id/score", handlers.RoomGetScore(roomsService, guessService, client))
 						room.GET("/replay/:filename", handlers.RoomDownloadReplay(roomsService, client))
 
-						room.POST("/:id", handlers.RoomSubmitGuess(roomsService, guessService, client))
+						room.POST("/:id", handlers.RoomSubmitGuess(cfg, roomsService, guessService, client))
 						room.POST("/:id/next", handlers.RoomGetNext(roomsService, playerService, client))
 						room.POST("/start", handlers.RoomStart(playerService, roomsService, client))
 					}

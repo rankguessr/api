@@ -7,6 +7,7 @@ import (
 )
 
 type Config struct {
+	TurnstileSecret string `env:"TURNSTILE_SECRET,required"`
 	RedisURL        string `env:"REDIS_URL,required"`
 	SentryDSN       string `env:"SENTRY_DSN,required"`
 	PORT            string `env:"PORT,required"`

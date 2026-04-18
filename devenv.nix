@@ -14,6 +14,10 @@
   env.WEB_URL = "http://localhost:5173";
   env.APP_URL = "http://localhost:8080";
   env.ENCRYPTION_KEY = "test-key-dont-use-in-production";
+
+  # test turnstile secret, always returns success
+  # use 2x0000000000000000000000000000000AA to fail
+  env.TURNSTILE_SECRET = "1x0000000000000000000000000000000AA";
   env.DATABASE_URL = "postgres://postgres:postgres@127.0.0.1/rankguessr?sslmode=disable";
   env.REDIS_URL = "redis://127.0.0.1:6379";
 

@@ -128,6 +128,10 @@ func (g *guesses) Create(ctx context.Context, userId, playerId, guess, actualRan
 	}
 
 	newElo, err := pgx.CollectOneRow(rows, pgx.RowTo[int])
+	if err != nil {
+		tx.Rollback(ctx)
+		return 0, domain.Guess{}, err
+	}
 
 	return newElo, guessRes, tx.Commit(ctx)
 }

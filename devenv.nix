@@ -24,6 +24,8 @@
 
   languages.go.enable = true;
 
+  scripts.build-cli.exec = "go build -o ./bin/guessr ./cmd/guessr";
+
   services.redis = {
     enable = true;
     port = 6379;

@@ -173,10 +173,19 @@ func (c *Client) GetMultiRooms(ctx context.Context, accessToken string) ([]Multi
 	return DoAndParse[[]MultiRoom](req)
 }
 
-func (c *Client) GetRankings(ctx context.Context, accessToken string, cursor *Cursor) (Rankings, error) {
+type RankingsOpts struct {
+	Country *string
+}
+
+func (c *Client) GetRankings(ctx context.Context, accessToken string, cursor *Cursor, opts ...RankingsOpts) (Rankings, error) {
 	data := url.Values{}
 	if cursor != nil {
 		data.Set("cursor[page]", strconv.Itoa(cursor.Page))
+	}
+
+	if len(opts) > 0 && opts[0].Country != nil {
+		code := strings.ToUpper(*opts[0].Country)
+		data.Set("country", code)
 	}
 
 	path := fmt.Sprintf("/rankings/osu/global?%s", data.Encode())

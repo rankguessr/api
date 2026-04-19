@@ -25,6 +25,8 @@ type Rooms interface {
 	DeleteByUser(ctx context.Context, userId int) error
 	DeleteByUserUnguessed(ctx context.Context, userId int) error
 
+	RefillForUser(ctx context.Context, userId int, sub uint) (domain.RefillResult, error)
+
 	// works for now, but should be moved to a separate service
 	GetScore(ctx context.Context, accessToken string, scoreId int) (osuapi.Score, error)
 }
@@ -37,6 +39,10 @@ type rooms struct {
 
 func NewRooms(repo repo.Rooms, oapi *osuapi.Client, rdb *redis.Client) Rooms {
 	return &rooms{repo: repo, oapi: oapi, rdb: rdb}
+}
+
+func (s *rooms) RefillForUser(ctx context.Context, userId int, sub uint) (domain.RefillResult, error) {
+	return s.repo.RefillForUser(ctx, userId, sub)
 }
 
 func (s *rooms) GetScore(ctx context.Context, accessToken string, scoreId int) (osuapi.Score, error) {
@@ -90,7 +96,7 @@ func (s *rooms) FindByID(ctx context.Context, id string) (domain.Room, error) {
 	return s.repo.FindByID(ctx, id)
 }
 
-func (s *rooms) Create(ctx context.Context, playerId int, userId int, scoreId int) (domain.Room, error) {
+func (s *rooms) Create(ctx context.Context, playerId, userId, scoreId int) (domain.Room, error) {
 	_, err := s.FindByUser(ctx, userId)
 	if err == nil {
 		return domain.Room{}, errors.New("user already has a room")

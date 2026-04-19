@@ -10,8 +10,12 @@ import (
 	"github.com/rankguessr/api/pkg/utils"
 )
 
-var rowToGuess = pgx.RowToStructByName[domain.Guess]
-var rowToGuessExtended = pgx.RowToStructByName[domain.GuessExtended]
+var (
+	refillInterval = 3 * time.Minute
+
+	rowToGuess         = pgx.RowToStructByName[domain.Guess]
+	rowToGuessExtended = pgx.RowToStructByName[domain.GuessExtended]
+)
 
 type Guesses interface {
 	CountFromDate(ctx context.Context, from time.Time) (int, error)
@@ -21,7 +25,7 @@ type Guesses interface {
 	FindByUser(ctx context.Context, userId, limit int) ([]domain.Guess, error)
 	FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.GuessExtended, error)
 
-	Create(ctx context.Context, userId, playerId, guess, actualRank, elo, scoreId, beatmapId, beatmapSetId int) (int, domain.Guess, error)
+	Create(ctx context.Context, userId, elo int, input domain.GuessCreate) (int, domain.Guess, error)
 }
 
 type guesses struct {
@@ -91,24 +95,23 @@ const createGuessQuery = `
 	VALUES (@id, @userId, @playerId, @guess, @actualRank, @elo, @beatmapId, @beatmapSetId, @scoreId) RETURNING *
 `
 
-// returns new elo & created guess
-func (g *guesses) Create(ctx context.Context, userId, playerId, guess, actualRank, elo, scoreId, beatmapId, beatmapSetId int) (int, domain.Guess, error) {
+func (g *guesses) Create(ctx context.Context, userId, elo int, input domain.GuessCreate) (int, domain.Guess, error) {
 	tx, err := g.pool.Begin(ctx)
 	if err != nil {
 		return 0, domain.Guess{}, err
 	}
 
 	rows, err := tx.Query(ctx, createGuessQuery, pgx.NamedArgs{
-		"elo":        elo,
-		"guess":      guess,
-		"userId":     userId,
-		"playerId":   playerId,
-		"actualRank": actualRank,
-		"id":         utils.NewID(),
+		"elo":    elo,
+		"userId": userId,
+		"id":     utils.NewID(),
 
-		"scoreId":      scoreId,
-		"beatmapId":    beatmapId,
-		"beatmapSetId": beatmapSetId,
+		"guess":        input.Guess,
+		"playerId":     input.PlayerID,
+		"actualRank":   input.ActualRank,
+		"scoreId":      input.ScoreID,
+		"beatmapId":    input.BeatmapID,
+		"beatmapSetId": input.BeatmapSetID,
 	})
 	if err != nil {
 		tx.Rollback(ctx)

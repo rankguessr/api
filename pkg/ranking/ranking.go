@@ -29,7 +29,7 @@ var ranges = []Range{
 
 var ErrRangeNotFound = errors.New("range not found")
 
-const multiplier = 5000
+const multiplier = 100
 
 func getRange(actual int) (Range, error) {
 	for _, r := range ranges {

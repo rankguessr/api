@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"log"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -19,6 +18,7 @@ import (
 const RoomStartMaxRetries = 5
 const ScoresLimit = 20
 
+// TODO: this MUST be refactored, we need to use transactions
 func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Client) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
@@ -29,7 +29,6 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 
 		_, err = rooms.FindByUserUnguessed(ctx, session.User.OsuID)
 		if err == nil {
-			log.Println("found")
 			return c.JSON(http.StatusBadRequest, utils.Map{
 				"message": "user is already in room",
 			})
@@ -75,8 +74,19 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 
 			roomId, err := tryFind()
 			if err == nil {
+				refill, err := rooms.RefillForUser(ctx, session.User.OsuID, 1)
+				if errors.Is(err, utils.ErrNotEnoughGuesses) {
+					return echo.NewHTTPError(http.StatusBadRequest, "no guesses left")
+				}
+
+				if err != nil {
+					rooms.DeleteById(ctx, roomId)
+					return echo.ErrInternalServerError.Wrap(err)
+				}
+
 				return c.JSON(200, utils.Map{
 					"room_id": roomId,
+					"refill":  refill,
 				})
 			}
 		}
@@ -133,6 +143,16 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 
 			score, err := tryFind()
 			if err == nil {
+				refill, err := rooms.RefillForUser(ctx, session.User.OsuID, 1)
+				if errors.Is(err, utils.ErrNotEnoughGuesses) {
+					return echo.NewHTTPError(http.StatusBadRequest, "no guesses left")
+				}
+
+				if err != nil {
+					rooms.DeleteById(ctx, roomId)
+					return echo.ErrInternalServerError.Wrap(err)
+				}
+
 				return c.JSON(200, utils.Map{
 					"score": utils.Map{
 						"pp":         score.PP,
@@ -142,6 +162,8 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 						"beatmap":    score.Beatmap,
 						"statistics": score.Statistics,
 					},
+					"refill": refill,
+					// TODO: why is this here?
 					"guess": nil,
 				})
 			}
@@ -274,8 +296,8 @@ func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		if req.Guess >= 3000000 {
-			return echo.NewHTTPError(http.StatusBadRequest, "guess must be less than 3 million")
+		if req.Guess > 3000000 || req.Guess < 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, "guess must be between 1 and 3 million")
 		}
 
 		if room.UserID != session.User.OsuID {
@@ -296,9 +318,15 @@ func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		newElo, guess, err := guesses.Create(
-			ctx, session.User.OsuID, player.ID, req.Guess,
-			player.Statistics.GlobalRank, room.ScoreID, score.BeatmapID, score.Beatmap.BeatmapSetId,
+		elo, guess, err := guesses.Create(
+			ctx, session.User.OsuID, domain.GuessCreate{
+				PlayerID:     player.ID,
+				Guess:        req.Guess,
+				ScoreID:      room.ScoreID,
+				BeatmapID:    score.BeatmapID,
+				BeatmapSetID: score.Beatmap.BeatmapSetId,
+				ActualRank:   player.Statistics.GlobalRank,
+			},
 		)
 
 		if errors.Is(err, ranking.ErrRangeNotFound) {
@@ -322,7 +350,7 @@ func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.
 		return c.JSON(200, utils.Map{
 			"guess":   guess,
 			"player":  player,
-			"new_elo": newElo,
+			"new_elo": elo,
 		})
 	}
 }

@@ -125,7 +125,7 @@ var migrations = []Entry{
 
 			ALTER TABLE "rooms" ADD UNIQUE (user_id);
 			ALTER TABLE "rooms" ADD COLUMN "kind" TEXT NOT NULL DEFAULT 'ranked';
-			ALTER TABLE "rooms" ADD COLUMN "closes_at" DEFAULT (NOW() + INTERVAL '1 day');
+			ALTER TABLE "rooms" ADD COLUMN "closes_at" TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '1 day';
 
 			ALTER TABLE "guesses" ADD COLUMN "kind" TEXT NOT NULL DEFAULT 'ranked';
 

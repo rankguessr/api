@@ -49,7 +49,7 @@
 
   processes = {
     backend = {
-      exec = "go build -o bin/guessr cmd/guessr && ./bin/guessr start --dev";
+      exec = "build-cli && ./bin/guessr start --dev";
     };
   };
 }

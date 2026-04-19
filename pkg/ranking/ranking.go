@@ -42,6 +42,10 @@ func getRange(actual int) (Range, error) {
 }
 
 func Calculate(guess, actual int) (int, error) {
+	if guess == 0 {
+		return -multiplier, nil
+	}
+
 	r, err := getRange(actual)
 	if err != nil {
 		return 0, err

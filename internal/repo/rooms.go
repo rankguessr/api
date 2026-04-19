@@ -39,6 +39,7 @@ func NewRooms(pool *pgxpool.Pool) Rooms {
 	return &rooms{pool: pool}
 }
 
+// TODO: this should be so much easier
 func (r *rooms) RefillForUser(ctx context.Context, osuId int, sub uint) (domain.RefillResult, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -60,29 +61,32 @@ func (r *rooms) RefillForUser(ctx context.Context, osuId int, sub uint) (domain.
 		return domain.RefillResult{}, err
 	}
 
-	now := time.Now()
+	refilledAt := time.Now()
 
-	rem := (now.Sub(user.RefilledAt)) % refillInterval
-	refilled := min(maxGuesses, user.AvailableGuesses+uint((now.Sub(user.RefilledAt))/refillInterval))
+	rem := (refilledAt.Sub(user.RefilledAt)) % refillInterval
+	refilled := min(maxGuesses, user.AvailableGuesses+uint((refilledAt.Sub(user.RefilledAt))/refillInterval))
 	if refilled < sub {
 		tx.Rollback(ctx)
 		return domain.RefillResult{}, utils.ErrNotEnoughGuesses
 	}
 
 	newGuesses := refilled - sub
+	if refilled < maxGuesses {
+		refilledAt = refilledAt.Add(-rem)
+	}
 
 	_, err = tx.Exec(ctx, `
 		UPDATE users 
 		SET available_guesses = $1, refilled_at = $2
 		WHERE osu_id = $3
-	`, newGuesses, now.Add(-rem), osuId)
+	`, newGuesses, refilledAt, osuId)
 	if err != nil {
 		tx.Rollback(ctx)
 		return domain.RefillResult{}, err
 	}
 
 	return domain.RefillResult{
-		RefilledAt:       now.Add(-rem),
+		RefilledAt:       refilledAt,
 		AvailableGuesses: newGuesses,
 	}, tx.Commit(ctx)
 }
@@ -157,8 +161,8 @@ func (s *rooms) UpdateScore(ctx context.Context, id string, playerId, scoreId in
 }
 
 const createRoomQuery = `
-	INSERT INTO rooms (id, player_id, user_id, score_id) 
-	VALUES (@id, @playerId, @userId, @scoreId) RETURNING *
+	INSERT INTO rooms (id, player_id, user_id, score_id, kind, closes_at) 
+	VALUES (@id, @playerId, @userId, @scoreId, @kind, @closesAt) RETURNING *
 `
 
 func (s *rooms) Create(ctx context.Context, playerId, userId, scoreId int) (domain.Room, error) {
@@ -166,6 +170,8 @@ func (s *rooms) Create(ctx context.Context, playerId, userId, scoreId int) (doma
 		"userId":   userId,
 		"scoreId":  scoreId,
 		"playerId": playerId,
+		"kind":     domain.RoomKindRanked,
+		"closesAt": time.Now().Add(5 * time.Minute),
 		"id":       utils.NewID(),
 	})
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v5"
 	"github.com/rankguessr/api/internal/service"
@@ -163,8 +164,6 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 						"statistics": score.Statistics,
 					},
 					"refill": refill,
-					// TODO: why is this here?
-					"guess": nil,
 				})
 			}
 		}
@@ -253,6 +252,34 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 			return echo.ErrNotFound.Wrap(err)
 		}
 
+		if room.ClosesAt.Before(time.Now()) {
+			player, err := client.GetUser(ctx, session.AccessToken, score.User.ID)
+			if err != nil {
+				return echo.ErrInternalServerError.Wrap(err)
+			}
+
+			_, _, err = guesses.Create(
+				ctx, session.User.OsuID, domain.GuessCreate{
+					PlayerID:     player.ID,
+					Guess:        0,
+					ScoreID:      room.ScoreID,
+					BeatmapID:    score.BeatmapID,
+					BeatmapSetID: score.Beatmap.BeatmapSetId,
+					ActualRank:   player.Statistics.GlobalRank,
+				},
+			)
+			if err != nil {
+				return echo.ErrInternalServerError.Wrap(err)
+			}
+
+			err = rooms.DeleteById(ctx, room.ID)
+			if err != nil {
+				return echo.ErrInternalServerError.Wrap(err)
+			}
+
+			return echo.NewHTTPError(http.StatusBadRequest, "room is already closed")
+		}
+
 		var user *osuapi.User
 		if guess != nil {
 			user = &score.User
@@ -268,7 +295,8 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 				"statistics": score.Statistics,
 				"user":       user,
 			},
-			"guess": guess,
+			"closes_at": room.ClosesAt,
+			"guess":     guess,
 		})
 	}
 }
@@ -329,6 +357,8 @@ func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.
 			},
 		)
 
+		// this should never happen with new pool
+		// TODO: check player rank against ranges before creating a room, it's cached anyway
 		if errors.Is(err, ranking.ErrRangeNotFound) {
 			err := rooms.DeleteById(ctx, roomId)
 			if err != nil {

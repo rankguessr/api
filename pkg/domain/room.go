@@ -1,12 +1,17 @@
 package domain
 
-import "time"
+import (
+	"time"
+
+	"github.com/rankguessr/api/pkg/osuapi"
+)
 
 type RoomKind string
 
 const (
-	RoomKindRanked     RoomKind = "ranked"
-	RoomKindSubmission RoomKind = "submission"
+	RoomKindRankedV1     RoomKind = "v1"
+	RoomKindRankedV2     RoomKind = "v2"
+	RoomKindSubmissionV2 RoomKind = "v2sub"
 )
 
 type Room struct {
@@ -19,4 +24,9 @@ type Room struct {
 	ClosesAt  time.Time `json:"closes_at"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type RoomExtended struct {
+	Room
+	Score osuapi.Score `json:"score"`
 }

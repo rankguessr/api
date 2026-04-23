@@ -29,6 +29,19 @@ func Run(ctx context.Context) error {
 				Action: RemoveCmd,
 			},
 			{
+				Name:  "insert",
+				Usage: "insert players from csv files in a directory",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "dir",
+						Aliases: []string{"d"},
+						Usage:   "directory containing csv files to insert players from",
+						Value:   "./collected",
+					},
+				},
+				Action: InsertPlayers,
+			},
+			{
 				Name:  "collect",
 				Usage: "collect osu! players",
 				Commands: []*cli.Command{

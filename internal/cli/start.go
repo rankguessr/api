@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -18,6 +19,7 @@ import (
 	rmiddleware "github.com/rankguessr/api/internal/middleware"
 	"github.com/rankguessr/api/internal/repo"
 	"github.com/rankguessr/api/internal/service"
+	"github.com/rankguessr/api/internal/uow"
 	"github.com/rankguessr/api/pkg/migrate"
 	"github.com/rankguessr/api/pkg/osuapi"
 	"github.com/redis/go-redis/v9"
@@ -71,28 +73,28 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 
 	client := osuapi.NewClient(cfg.OsuClientID, cfg.OsuClientSecret)
 
-	userRepo := repo.NewUsers(pool)
+	uow := uow.New(pool)
+	userRepo := repo.NewUsers(uow)
 	userService := service.NewUser(userRepo)
 
-	playerRepo := repo.NewPlayers(pool)
+	playerRepo := repo.NewPlayers(uow)
 	playerService := service.NewPlayer(playerRepo)
 
-	roomsRepo := repo.NewRooms(pool)
-	roomsService := service.NewRooms(roomsRepo, client, rdb)
+	guessRepo := repo.NewGuesses(uow)
+	guessService := service.NewGuess(guessRepo, userRepo, uow)
 
-	guessRepo := repo.NewGuesses(pool)
-	guessService := service.NewGuess(guessRepo)
+	roomsRepo := repo.NewRooms(uow)
+	roomsService := service.NewRooms(roomsRepo, userRepo, playerRepo, guessService, client, rdb, uow)
 
-	sessionsRepo := repo.NewSessions(pool)
+	sessionsRepo := repo.NewSessions(uow)
 	sessionsService := service.NewSessions(cfg, sessionsRepo)
 
-	submissionsRepo := repo.NewSubmissions(pool)
+	submissionsRepo := repo.NewSubmissions(uow)
 	submissionsService := service.NewSubmissions(submissionsRepo)
 
 	e := echo.New()
 	e.Use(middleware.Recover())
 	e.Use(middleware.RequestID())
-	e.Use(rmiddleware.RequestLogger())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowCredentials: true,
 		AllowOrigins:     []string{cfg.WebURL},
@@ -121,6 +123,10 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 
 		slog.SetDefault(logger)
 		e.Use(sentryecho.New(sentryecho.Options{}))
+	} else {
+		logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+		slog.SetDefault(logger)
+		e.Use(rmiddleware.RequestLogger())
 	}
 
 	sessions := rmiddleware.Session(client, sessionsService)

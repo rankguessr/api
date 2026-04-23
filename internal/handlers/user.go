@@ -2,11 +2,9 @@ package handlers
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/labstack/echo/v5"
 	"github.com/rankguessr/api/internal/service"
-	"github.com/rankguessr/api/pkg/domain"
 	"github.com/rankguessr/api/pkg/osuapi"
 	"github.com/rankguessr/api/pkg/utils"
 )
@@ -19,57 +17,16 @@ func UserGetRoomsData(rooms service.Rooms, client *osuapi.Client, guesses servic
 			return echo.ErrUnauthorized.Wrap(err)
 		}
 
-		var room *domain.Room
-		found, err := rooms.FindByUserUnguessed(ctx, session.User.OsuID)
-		if err == nil {
-			room = &found
-		}
-
-		score, err := rooms.GetScore(ctx, session.AccessToken, room.ScoreID)
-		if err != nil {
-			err := rooms.DeleteById(ctx, room.ID)
-			if err != nil {
-				return err
-			}
-
-			return echo.ErrNotFound.Wrap(err)
-		}
-
-		if room.ClosesAt.Before(time.Now()) {
-			player, err := client.GetUser(ctx, session.AccessToken, score.User.ID)
-			if err != nil {
-				return echo.ErrInternalServerError.Wrap(err)
-			}
-
-			_, _, err = guesses.Create(
-				ctx, session.User.OsuID, domain.GuessCreate{
-					PlayerID:     player.ID,
-					Guess:        0,
-					ScoreID:      room.ScoreID,
-					BeatmapID:    score.BeatmapID,
-					BeatmapSetID: score.Beatmap.BeatmapSetId,
-					ActualRank:   player.Statistics.GlobalRank,
-				},
-			)
-			if err != nil {
-				return echo.ErrInternalServerError.Wrap(err)
-			}
-
-			err = rooms.DeleteById(ctx, room.ID)
-			if err != nil {
-				return echo.ErrInternalServerError.Wrap(err)
-			}
-
-			room = nil
-		}
+		room, roomErr := rooms.FindByUser(ctx, session.User.OsuID, session.AccessToken)
 
 		latest, err := guesses.FindByUser(ctx, session.User.OsuID, 6)
 		if err != nil {
-			return echo.ErrInternalServerError.Wrap(err)
+			return err
 		}
 
-		if room == nil {
+		if roomErr != nil {
 			return c.JSON(http.StatusOK, utils.Map{
+				"room":   nil,
 				"latest": latest,
 			})
 		}
@@ -80,12 +37,12 @@ func UserGetRoomsData(rooms service.Rooms, client *osuapi.Client, guesses servic
 				"id":        room.ID,
 				"closes_at": room.ClosesAt,
 				"score": utils.Map{
-					"pp":         score.PP,
-					"mods":       score.Mods,
-					"accuracy":   score.Accuracy,
-					"beatmapset": score.BeatmapSet,
-					"beatmap":    score.Beatmap,
-					"statistics": score.Statistics,
+					"pp":         room.Score.PP,
+					"mods":       room.Score.Mods,
+					"accuracy":   room.Score.Accuracy,
+					"beatmapset": room.Score.BeatmapSet,
+					"beatmap":    room.Score.Beatmap,
+					"statistics": room.Score.Statistics,
 				},
 			},
 			"latest": latest,

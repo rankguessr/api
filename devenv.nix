@@ -14,7 +14,7 @@
   env.WEB_URL = "http://localhost:5173";
   env.APP_URL = "http://localhost:8080";
   env.ENCRYPTION_KEY = "test-key-dont-use-in-production";
-  env.DATABASE_URL = "postgres://postgres:postgres@127.0.0.1/rankguessr?sslmode=disable";
+  env.DATABASE_URL = "postgres://postgres:postgres@127.0.0.1:5432/rankguessr?sslmode=disable";
   env.REDIS_URL = "redis://127.0.0.1:6379";
 
   packages = [
@@ -24,7 +24,8 @@
 
   languages.go.enable = true;
 
-  scripts.build-cli.exec = "go build -o ./bin/guessr ./cmd/guessr";
+  scripts.buildcli.exec = "go build -o ./bin/guessr ./cmd/guessr";
+  scripts.opendb.exec = "psql -U postgres -d rankguessr";
 
   services.redis = {
     enable = true;
@@ -49,7 +50,7 @@
 
   processes = {
     backend = {
-      exec = "build-cli && ./bin/guessr start --dev";
+      exec = "buildcli && ./bin/guessr start --dev";
     };
   };
 }

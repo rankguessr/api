@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rankguessr/api/internal/uow"
 	"github.com/rankguessr/api/pkg/domain"
 	"github.com/rankguessr/api/pkg/utils"
 )
@@ -22,15 +22,16 @@ type Submissions interface {
 }
 
 type submissions struct {
-	pool *pgxpool.Pool
+	uow *uow.UnitOfWork
 }
 
-func NewSubmissions(pool *pgxpool.Pool) Submissions {
-	return &submissions{pool: pool}
+func NewSubmissions(uow *uow.UnitOfWork) Submissions {
+	return &submissions{uow: uow}
 }
 
 func (s *submissions) Create(ctx context.Context, input domain.SubmissionCreate) (domain.Submission, error) {
-	rows, err := s.pool.Query(ctx, `
+	ex := s.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, `
 		INSERT INTO submissions (id, user_id, player_id, score_id, comment, beatmap_id, beatmapset_id) 
 		VALUES (@id, @userId, @playerId, @scoreId, @comment, @beatmapId, @beatmapsetId) RETURNING *
 	`, pgx.NamedArgs{
@@ -50,12 +51,14 @@ func (s *submissions) Create(ctx context.Context, input domain.SubmissionCreate)
 }
 
 func (s *submissions) Delete(ctx context.Context, id string) error {
-	_, err := s.pool.Exec(ctx, "DELETE FROM submissions WHERE id = $1", id)
+	ex := s.uow.Executor(ctx)
+	_, err := ex.Exec(ctx, "DELETE FROM submissions WHERE id = $1", id)
 	return err
 }
 
 func (s *submissions) FindByUser(ctx context.Context, userId int) ([]domain.Submission, error) {
-	rows, err := s.pool.Query(ctx, "SELECT * FROM submissions WHERE user_id = $1", userId)
+	ex := s.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, "SELECT * FROM submissions WHERE user_id = $1", userId)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +67,8 @@ func (s *submissions) FindByUser(ctx context.Context, userId int) ([]domain.Subm
 }
 
 func (s *submissions) FindRandom(ctx context.Context, userId int) (domain.Submission, error) {
-	rows, err := s.pool.Query(ctx, `
+	ex := s.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, `
 		SELECT * FROM submissions s 
 		WHERE NOT EXISTS (
 			SELECT 1 FROM guesses g
@@ -81,7 +85,8 @@ func (s *submissions) FindRandom(ctx context.Context, userId int) (domain.Submis
 }
 
 func (s *submissions) FindUnaccepted(ctx context.Context) ([]domain.Submission, error) {
-	rows, err := s.pool.Query(ctx, "SELECT * FROM submissions WHERE NOT is_accepted")
+	ex := s.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, "SELECT * FROM submissions WHERE NOT is_accepted")
 	if err != nil {
 		return nil, err
 	}
@@ -90,6 +95,7 @@ func (s *submissions) FindUnaccepted(ctx context.Context) ([]domain.Submission, 
 }
 
 func (s *submissions) SetAccepted(ctx context.Context, id string) error {
-	_, err := s.pool.Exec(ctx, "UPDATE submissions SET is_accepted = TRUE, updated_at = NOW() WHERE id = $1", id)
+	ex := s.uow.Executor(ctx)
+	_, err := ex.Exec(ctx, "UPDATE submissions SET is_accepted = TRUE, updated_at = NOW() WHERE id = $1", id)
 	return err
 }

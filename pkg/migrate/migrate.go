@@ -124,10 +124,10 @@ var migrations = []Entry{
 			ALTER TABLE "users" ADD COLUMN "refilled_at" TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 			ALTER TABLE "rooms" ADD UNIQUE (user_id);
-			ALTER TABLE "rooms" ADD COLUMN "kind" TEXT NOT NULL DEFAULT 'ranked';
+			ALTER TABLE "rooms" ADD COLUMN "kind" TEXT NOT NULL DEFAULT 'v1';
 			ALTER TABLE "rooms" ADD COLUMN "closes_at" TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '1 day';
 
-			ALTER TABLE "guesses" ADD COLUMN "kind" TEXT NOT NULL DEFAULT 'ranked';
+			ALTER TABLE "guesses" ADD COLUMN "kind" TEXT NOT NULL DEFAULT 'v1';
 
 			CREATE TABLE IF NOT EXISTS "submissions" (
 				"id" CHAR(27) PRIMARY KEY,

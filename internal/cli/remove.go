@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rankguessr/api/internal/repo"
 	"github.com/rankguessr/api/internal/service"
+	"github.com/rankguessr/api/internal/uow"
 	"github.com/rankguessr/api/pkg/osuapi"
 	"github.com/urfave/cli/v3"
 )
@@ -41,7 +42,8 @@ func RemoveCmd(ctx context.Context, c *cli.Command) error {
 		log.Fatal("failed to ping db: ", err)
 	}
 
-	playerRepo := repo.NewPlayers(pool)
+	uow := uow.New(pool)
+	playerRepo := repo.NewPlayers(uow)
 	playerSvc := service.NewPlayer(playerRepo)
 
 	client := osuapi.NewClient(osuClientId, osuClientSecret)

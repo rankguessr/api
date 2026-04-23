@@ -3,6 +3,7 @@ package handlers
 import (
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v5"
@@ -22,7 +23,17 @@ func HealthCheck(ctx *echo.Context) error {
 func PublicStatsGet(guess service.Guess, users service.User, rdb *redis.Client) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
-		stats, err := cache.GetStats(rdb, ctx)
+		limit, err := strconv.Atoi(c.QueryParam("limit"))
+		if err != nil || limit <= 0 {
+			limit = 10
+		}
+
+		page, err := strconv.Atoi(c.QueryParam("page"))
+		if err != nil || page <= 0 {
+			page = 1
+		}
+
+		stats, err := cache.GetStats(rdb, ctx, limit, page)
 		if err == nil {
 			return c.JSON(200, stats)
 		}
@@ -42,7 +53,7 @@ func PublicStatsGet(guess service.Guess, users service.User, rdb *redis.Client) 
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		topUsers, err := users.FindTop(ctx, 15)
+		topUsers, err := users.FindTop(ctx, limit, page)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}
@@ -54,7 +65,7 @@ func PublicStatsGet(guess service.Guess, users service.User, rdb *redis.Client) 
 			Best:        bestGuesses,
 		}
 
-		err = cache.SetStats(rdb, ctx, stats)
+		err = cache.SetStats(rdb, ctx, stats, limit, page)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to set stats cache")
 		}

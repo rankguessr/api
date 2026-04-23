@@ -5,108 +5,58 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rankguessr/api/internal/uow"
 	"github.com/rankguessr/api/pkg/domain"
 	"github.com/rankguessr/api/pkg/utils"
 )
 
-const maxGuesses = 15
+var (
+	rowToRoom = pgx.RowToStructByName[domain.Room]
+)
 
 type Rooms interface {
 	FindByID(ctx context.Context, id string) (domain.Room, error)
 	FindByUser(ctx context.Context, userId int) (domain.Room, error)
 	FindByUserUnguessed(ctx context.Context, userId int) (domain.Room, error)
 
-	Create(ctx context.Context, playerId, userId, scoreId int) (domain.Room, error)
+	Create(ctx context.Context, playerId, userId, scoreId int, kind domain.RoomKind) (domain.Room, error)
 
 	DeleteById(ctx context.Context, id string) error
 	DeleteByUserUnguessed(ctx context.Context, userId int) error
 	DeleteByUser(ctx context.Context, userId int) error
-
-	RefillForUser(ctx context.Context, userId int, sub uint) (domain.RefillResult, error)
 
 	UpdateGuessID(ctx context.Context, id string, guessId string) error
 	UpdateScore(ctx context.Context, id string, playerId, scoreId int, guessId *string) (domain.Room, error)
 }
 
 type rooms struct {
-	pool *pgxpool.Pool
+	uow *uow.UnitOfWork
 }
 
-var rowToRoom = pgx.RowToStructByName[domain.Room]
-
-func NewRooms(pool *pgxpool.Pool) Rooms {
-	return &rooms{pool: pool}
+func NewRooms(uow *uow.UnitOfWork) Rooms {
+	return &rooms{uow: uow}
 }
 
-// TODO: this should be so much easier
-func (r *rooms) RefillForUser(ctx context.Context, osuId int, sub uint) (domain.RefillResult, error) {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return domain.RefillResult{}, err
-	}
-
-	rows, err := tx.Query(ctx, `
-		SELECT * FROM users 
-		WHERE osu_id = $1
-		FOR UPDATE
-	`, osuId)
-	if err != nil {
-		return domain.RefillResult{}, err
-	}
-
-	user, err := pgx.CollectOneRow(rows, rowToUser)
-	if err != nil {
-		tx.Rollback(ctx)
-		return domain.RefillResult{}, err
-	}
-
-	refilledAt := time.Now()
-
-	rem := (refilledAt.Sub(user.RefilledAt)) % refillInterval
-	refilled := min(maxGuesses, user.AvailableGuesses+uint((refilledAt.Sub(user.RefilledAt))/refillInterval))
-	if refilled < sub {
-		tx.Rollback(ctx)
-		return domain.RefillResult{}, utils.ErrNotEnoughGuesses
-	}
-
-	newGuesses := refilled - sub
-	if refilled < maxGuesses {
-		refilledAt = refilledAt.Add(-rem)
-	}
-
-	_, err = tx.Exec(ctx, `
-		UPDATE users 
-		SET available_guesses = $1, refilled_at = $2
-		WHERE osu_id = $3
-	`, newGuesses, refilledAt, osuId)
-	if err != nil {
-		tx.Rollback(ctx)
-		return domain.RefillResult{}, err
-	}
-
-	return domain.RefillResult{
-		RefilledAt:       refilledAt,
-		AvailableGuesses: newGuesses,
-	}, tx.Commit(ctx)
-}
-
-func (s *rooms) DeleteByUserUnguessed(ctx context.Context, userId int) error {
-	_, err := s.pool.Exec(ctx, `
+func (r *rooms) DeleteByUserUnguessed(ctx context.Context, userId int) error {
+	ex := r.uow.Executor(ctx)
+	_, err := ex.Exec(ctx, `
 		DELETE FROM rooms WHERE user_id = $1 AND guess_id IS NULL
 	`, userId)
 	return err
 }
 
-func (s *rooms) DeleteByUser(ctx context.Context, userId int) error {
-	_, err := s.pool.Exec(ctx, `
+func (r *rooms) DeleteByUser(ctx context.Context, userId int) error {
+	ex := r.uow.Executor(ctx)
+	_, err := ex.Exec(ctx, `
 		DELETE FROM rooms WHERE user_id = $1 AND guess_id IS NOT NULL
 	`, userId)
+
 	return err
 }
 
-func (s *rooms) FindByUserUnguessed(ctx context.Context, userId int) (domain.Room, error) {
-	rows, err := s.pool.Query(ctx, `
+func (r *rooms) FindByUserUnguessed(ctx context.Context, userId int) (domain.Room, error) {
+	ex := r.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, `
 		SELECT * FROM rooms 
 		WHERE user_id = $1 AND guess_id IS NULL
 	`, userId)
@@ -117,18 +67,19 @@ func (s *rooms) FindByUserUnguessed(ctx context.Context, userId int) (domain.Roo
 	return pgx.CollectOneRow(rows, rowToRoom)
 }
 
-func (s *rooms) DeleteById(ctx context.Context, id string) error {
-	_, err := s.pool.Exec(ctx, `
-		DELETE FROM rooms WHERE id = $1
-	`, id)
+func (r *rooms) DeleteById(ctx context.Context, id string) error {
+	ex := r.uow.Executor(ctx)
+	_, err := ex.Exec(ctx, "DELETE FROM rooms WHERE id = $1", id)
+
 	return err
 }
 
-func (s *rooms) FindByUser(ctx context.Context, userId int) (domain.Room, error) {
-	rows, err := s.pool.Query(ctx, `
+func (r *rooms) FindByUser(ctx context.Context, userId int) (domain.Room, error) {
+	ex := r.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, `
 		SELECT * FROM rooms 
 		WHERE user_id = $1 AND guess_id IS NULL
-		ORDER BY created_at DESC LIMIT 1
+		ORDER BY created_at DESC
 	`, userId)
 	if err != nil {
 		return domain.Room{}, err
@@ -137,15 +88,15 @@ func (s *rooms) FindByUser(ctx context.Context, userId int) (domain.Room, error)
 	return pgx.CollectOneRow(rows, rowToRoom)
 }
 
-func (s *rooms) UpdateGuessID(ctx context.Context, id string, guessId string) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE rooms SET guess_id = $1 WHERE id = $2
-	`, guessId, id)
+func (r *rooms) UpdateGuessID(ctx context.Context, id string, guessId string) error {
+	ex := r.uow.Executor(ctx)
+	_, err := ex.Exec(ctx, "UPDATE rooms SET guess_id = $1 WHERE id = $2", guessId, id)
 	return err
 }
 
-func (s *rooms) UpdateScore(ctx context.Context, id string, playerId, scoreId int, guessId *string) (domain.Room, error) {
-	rows, err := s.pool.Query(ctx, `
+func (r *rooms) UpdateScore(ctx context.Context, id string, playerId, scoreId int, guessId *string) (domain.Room, error) {
+	ex := r.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, `
 		UPDATE rooms SET 
 			player_id = $1, 
 			score_id = $2, 
@@ -160,18 +111,17 @@ func (s *rooms) UpdateScore(ctx context.Context, id string, playerId, scoreId in
 	return pgx.CollectOneRow(rows, rowToRoom)
 }
 
-const createRoomQuery = `
-	INSERT INTO rooms (id, player_id, user_id, score_id, kind, closes_at) 
-	VALUES (@id, @playerId, @userId, @scoreId, @kind, @closesAt) RETURNING *
-`
-
-func (s *rooms) Create(ctx context.Context, playerId, userId, scoreId int) (domain.Room, error) {
-	rows, err := s.pool.Query(ctx, createRoomQuery, pgx.NamedArgs{
+func (r *rooms) Create(ctx context.Context, playerId, userId, scoreId int, kind domain.RoomKind) (domain.Room, error) {
+	ex := r.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, `
+		INSERT INTO rooms (id, player_id, user_id, score_id, kind, closes_at) 
+		VALUES (@id, @playerId, @userId, @scoreId, @kind, @closesAt) RETURNING *
+	`, pgx.NamedArgs{
 		"userId":   userId,
 		"scoreId":  scoreId,
 		"playerId": playerId,
-		"kind":     domain.RoomKindRanked,
-		"closesAt": time.Now().Add(5 * time.Minute),
+		"kind":     kind,
+		"closesAt": time.Now().Add(10 * time.Minute),
 		"id":       utils.NewID(),
 	})
 	if err != nil {
@@ -181,14 +131,9 @@ func (s *rooms) Create(ctx context.Context, playerId, userId, scoreId int) (doma
 	return pgx.CollectOneRow(rows, rowToRoom)
 }
 
-const findRoomByIDQuery = `
-	SELECT *
-	FROM rooms
-	WHERE id = $1
-`
-
-func (s *rooms) FindByID(ctx context.Context, id string) (domain.Room, error) {
-	rows, err := s.pool.Query(ctx, findRoomByIDQuery, id)
+func (r *rooms) FindByID(ctx context.Context, id string) (domain.Room, error) {
+	ex := r.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, "SELECT * FROM rooms WHERE id = $1", id)
 	if err != nil {
 		return domain.Room{}, err
 	}

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rankguessr/api/internal/uow"
 	"github.com/rankguessr/api/pkg/domain"
 	"github.com/rankguessr/api/pkg/utils"
 )
@@ -23,15 +23,16 @@ type Sessions interface {
 }
 
 type sessions struct {
-	pool *pgxpool.Pool
+	uow *uow.UnitOfWork
 }
 
-func NewSessions(pool *pgxpool.Pool) Sessions {
-	return &sessions{pool: pool}
+func NewSessions(uow *uow.UnitOfWork) Sessions {
+	return &sessions{uow: uow}
 }
 
 func (s *sessions) FindWithUser(ctx context.Context, id, key string) (domain.SessionExtended, error) {
-	rows, err := s.pool.Query(ctx, `
+	ex := s.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, `
 		SELECT 
 			s.id, 
 			pgp_sym_decrypt(s.access_token, TEXT($2)) AS access_token,
@@ -49,7 +50,8 @@ func (s *sessions) FindWithUser(ctx context.Context, id, key string) (domain.Ses
 }
 
 func (s *sessions) Create(ctx context.Context, osuId int, accessToken string, refreshToken string, expiresAt time.Time, key string) (domain.Session, error) {
-	rows, err := s.pool.Query(ctx, `
+	ex := s.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, `
 		INSERT INTO sessions (id, user_id, access_token, refresh_token, expires_at)
 		VALUES 
 			(@id, @userId, 
@@ -75,12 +77,14 @@ func (s *sessions) Create(ctx context.Context, osuId int, accessToken string, re
 }
 
 func (s *sessions) DeleteByUser(ctx context.Context, osuId int) error {
-	_, err := s.pool.Exec(ctx, "DELETE FROM sessions WHERE user_id = $1", osuId)
+	ex := s.uow.Executor(ctx)
+	_, err := ex.Exec(ctx, "DELETE FROM sessions WHERE user_id = $1", osuId)
 	return err
 }
 
 func (s *sessions) Find(ctx context.Context, id, key string) (domain.Session, error) {
-	rows, err := s.pool.Query(ctx, `
+	ex := s.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, `
 		SELECT id, expires_at, created_at,
 			TEXT(pgp_sym_decrypt(s.access_token, TEXT($2))) AS access_token,
 			TEXT(pgp_sym_decrypt(s.refresh_token, TEXT($2))) AS refresh_token
@@ -94,7 +98,8 @@ func (s *sessions) Find(ctx context.Context, id, key string) (domain.Session, er
 }
 
 func (s *sessions) UpdateTokens(ctx context.Context, id, accessToken, refreshToken string, expiresIn time.Time, key string) error {
-	_, err := s.pool.Exec(ctx, `
+	ex := s.uow.Executor(ctx)
+	_, err := ex.Exec(ctx, `
 		UPDATE sessions 
 		SET access_token = pgp_sym_encrypt(@accessToken, TEXT(@encKey)),
 			refresh_token = pgp_sym_encrypt(@refreshToken, TEXT(@encKey)),

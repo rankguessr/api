@@ -133,6 +133,7 @@ func (c *Client) GetUserScores(ctx context.Context, accessToken string, userId i
 		return nil, err
 	}
 
+	SetDefaultHeaders(req)
 	SetAuthHeader(req, accessToken)
 	return DoAndParse[[]Score](req)
 }

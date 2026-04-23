@@ -3,12 +3,13 @@ package domain
 import "time"
 
 type GuessCreate struct {
-	PlayerID     int `json:"player_id"`
-	Guess        int `json:"guess"`
-	ActualRank   int `json:"actual_rank"`
-	ScoreID      int `json:"score_id"`
-	BeatmapID    int `json:"beatmap_id"`
-	BeatmapSetID int `json:"beatmapset_id"`
+	PlayerID     int      `json:"player_id"`
+	Guess        int      `json:"guess"`
+	ActualRank   int      `json:"actual_rank"`
+	ScoreID      int      `json:"score_id"`
+	BeatmapID    int      `json:"beatmap_id"`
+	Kind         RoomKind `json:"kind"`
+	BeatmapSetID int      `json:"beatmapset_id"`
 }
 
 type Guess struct {

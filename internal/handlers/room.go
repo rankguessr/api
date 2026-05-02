@@ -2,11 +2,12 @@ package handlers
 
 import (
 	"errors"
-	"log"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/labstack/echo/v5"
+	"github.com/rankguessr/api/internal/config"
 	"github.com/rankguessr/api/internal/service"
 	"github.com/rankguessr/api/pkg/domain"
 	"github.com/rankguessr/api/pkg/osuapi"
@@ -41,8 +42,6 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 			return echo.NewHTTPError(http.StatusBadRequest, "failed to find a score, try again later")
 		}
 
-		log.Println(score)
-
 		refill, room, err := rooms.Create(ctx, score.User.ID, session.User.OsuID, score.ID, domain.RoomKindRankedV2)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "failed to create a room, try again later")
@@ -70,7 +69,7 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to find a score")
 		}
 
-		refill, _, err := rooms.SetNext(ctx, roomId, session.User.OsuID, score.User.ID, score.ID)
+		refill, room, err := rooms.SetNext(ctx, roomId, session.User.OsuID, score.User.ID, score.ID)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to set next score")
 		}
@@ -84,7 +83,8 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 				"beatmap":    score.Beatmap,
 				"statistics": score.Statistics,
 			},
-			"refill": refill,
+			"refill":    refill,
+			"closes_at": room.ClosesAt,
 		})
 	}
 }
@@ -165,7 +165,7 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 		return c.JSON(200, utils.Map{
 			"score": utils.Map{
 				"pp":         room.Score.PP,
-				"mods":       room.Score.Mods,
+				"mods":       room.Score.ModsAcronyms(),
 				"accuracy":   room.Score.Accuracy,
 				"beatmapset": room.Score.BeatmapSet,
 				"beatmap":    room.Score.Beatmap,
@@ -179,10 +179,11 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 }
 
 type submitRequest struct {
-	Guess int `json:"guess"`
+	Guess int    `json:"guess"`
+	Token string `json:"token"`
 }
 
-func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.Client) echo.HandlerFunc {
+func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.Client, cfg *config.Config) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -193,6 +194,16 @@ func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.
 		var req submitRequest
 		if err := c.Bind(&req); err != nil {
 			return echo.ErrBadRequest.Wrap(err)
+		}
+
+		err = utils.ValidateTurnstile(req.Token, cfg.TurnstileSecret)
+		if err != nil {
+			var tuErr *utils.TurnstileError
+			if errors.As(err, &tuErr) {
+				return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("turnstile validation error: %s", tuErr.Error()))
+			}
+
+			return echo.ErrInternalServerError.Wrap(err)
 		}
 
 		roomId := c.Param("id")

@@ -14,6 +14,8 @@ const (
 
 var (
 	apiV2BaseURL = fmt.Sprintf("%s/api/v2", osuBaseURL)
+
+	ErrNotFound = fmt.Errorf("resource not found")
 )
 
 func SetDefaultHeaders(req *http.Request) {
@@ -52,6 +54,10 @@ func Do(req *http.Request) (*http.Response, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, ErrNotFound
+		}
+
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}

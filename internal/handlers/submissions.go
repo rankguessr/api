@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/labstack/echo/v5"
 	"github.com/rankguessr/api/internal/service"
@@ -46,7 +47,7 @@ func SubmissionCreate(submissions service.Submissions, client *osuapi.Client) ec
 			BeatmapsetID: score.Beatmap.BeatmapSetId,
 		})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to create submission")
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to create submission").Wrap(err)
 		}
 
 		return c.JSON(http.StatusCreated, submission)
@@ -72,9 +73,7 @@ func SubmissionDelete(submissions service.Submissions) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete submission").Wrap(err)
 		}
 
-		return c.JSON(http.StatusNoContent, utils.Map{
-			"ok": true,
-		})
+		return c.NoContent(http.StatusNoContent)
 	}
 }
 
@@ -113,16 +112,14 @@ func SubmissionFindByUser(submissions service.Submissions) echo.HandlerFunc {
 
 		submissions, err := submissions.FindByUser(ctx, session.User.OsuID)
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, utils.Map{
-				"message": "failed to get submissions",
-			})
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to find submissions").Wrap(err)
 		}
 
 		return c.JSON(http.StatusOK, submissions)
 	}
 }
 
-func SubmissionFindUnaccepted(submissions service.Submissions) echo.HandlerFunc {
+func SubmissionsFind(submissions service.Submissions) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -134,7 +131,22 @@ func SubmissionFindUnaccepted(submissions service.Submissions) echo.HandlerFunc 
 			return echo.NewHTTPError(http.StatusForbidden, "not an admin")
 		}
 
-		submissions, err := submissions.FindUnaccepted(ctx)
+		accepted := c.QueryParam("accepted") == "true"
+		limit, err := strconv.Atoi(c.QueryParam("limit"))
+		if err != nil || limit <= 0 {
+			limit = 10
+		}
+
+		page, err := strconv.Atoi(c.QueryParam("page"))
+		if err != nil || page <= 0 {
+			page = 1
+		}
+
+		if limit > 50 {
+			return echo.ErrBadRequest.Wrap(utils.ErrLimitExceeded)
+		}
+
+		submissions, err := submissions.Find(ctx, accepted, limit, page)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get submissions").Wrap(err)
 		}

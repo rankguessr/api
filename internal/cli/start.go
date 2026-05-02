@@ -146,8 +146,9 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 	user := e.Group("/user")
 	{
 		user.Use(sessions)
-		user.GET("/me", handlers.AuthMe(userService))
-		user.GET("/rooms", handlers.UserGetRoomsData(roomsService, client, guessService))
+		user.GET("/me", handlers.AuthMe(userService, roomsService))
+		user.GET("/guesses", handlers.UserGetGuesses(guessService))
+		user.GET("/room", handlers.UserGetCurrentRoom(roomsService))
 	}
 
 	room := e.Group("/room")
@@ -157,18 +158,18 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 		room.GET("/:id/score", handlers.RoomGetScore(roomsService, guessService, client))
 		room.GET("/replay/:filename", handlers.RoomDownloadReplay(roomsService, client))
 
-		room.POST("/:id", handlers.RoomSubmitGuess(roomsService, guessService, client))
+		room.POST("/:id", handlers.RoomSubmitGuess(roomsService, guessService, client, cfg))
 		room.POST("/:id/next", handlers.RoomGetNext(roomsService, playerService, client))
 		room.POST("/start", handlers.RoomStart(playerService, roomsService, client))
 	}
 
-	submissions := e.Group("/submission")
+	submissions := e.Group("/submissions")
 	{
 		submissions.Use(sessions)
-		submissions.POST("/", handlers.SubmissionCreate(submissionsService, client))
+		submissions.GET("", handlers.SubmissionsFind(submissionsService))
+		submissions.POST("", handlers.SubmissionCreate(submissionsService, client))
 		submissions.POST("/:id/accept", handlers.SubmissionSetAccepted(submissionsService))
 
-		submissions.GET("/unaccepted", handlers.SubmissionFindUnaccepted(submissionsService))
 		submissions.DELETE("/:id", handlers.SubmissionDelete(submissionsService))
 	}
 

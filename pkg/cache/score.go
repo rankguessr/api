@@ -14,7 +14,7 @@ func scoreCacheKey(scoreId int) string {
 }
 
 func SetScore(rdb *redis.Client, ctx context.Context, score osuapi.Score) error {
-	return SetJSON(rdb, ctx, scoreCacheKey(score.ID), score, 5*time.Minute)
+	return SetJSON(rdb, ctx, scoreCacheKey(score.ID), score, 60*time.Minute)
 }
 
 func GetScore(rdb *redis.Client, ctx context.Context, scoreId int) (osuapi.Score, error) {

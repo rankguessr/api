@@ -8,8 +8,8 @@ type GuessCreate struct {
 	ActualRank   int      `json:"actual_rank"`
 	ScoreID      int      `json:"score_id"`
 	BeatmapID    int      `json:"beatmap_id"`
-	Kind         RoomKind `json:"kind"`
 	BeatmapSetID int      `json:"beatmapset_id"`
+	Kind         RoomKind `json:"kind"`
 }
 
 type Guess struct {

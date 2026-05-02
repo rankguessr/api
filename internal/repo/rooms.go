@@ -11,7 +11,8 @@ import (
 )
 
 var (
-	rowToRoom = pgx.RowToStructByName[domain.Room]
+	rowToRoom    = pgx.RowToStructByName[domain.Room]
+	roomLifetime = 10 * time.Minute
 )
 
 type Rooms interface {
@@ -90,7 +91,12 @@ func (r *rooms) FindByUser(ctx context.Context, userId int) (domain.Room, error)
 
 func (r *rooms) UpdateGuessID(ctx context.Context, id string, guessId string) error {
 	ex := r.uow.Executor(ctx)
-	_, err := ex.Exec(ctx, "UPDATE rooms SET guess_id = $1 WHERE id = $2", guessId, id)
+	_, err := ex.Exec(ctx,
+		"UPDATE rooms SET guess_id = @guessId WHERE id = @id",
+		pgx.NamedArgs{
+			"guessId": guessId,
+			"id":      id,
+		})
 	return err
 }
 
@@ -98,12 +104,19 @@ func (r *rooms) UpdateScore(ctx context.Context, id string, playerId, scoreId in
 	ex := r.uow.Executor(ctx)
 	rows, err := ex.Query(ctx, `
 		UPDATE rooms SET 
-			player_id = $1, 
-			score_id = $2, 
-			guess_id = $3 
-		WHERE id = $4 
+			player_id = @playerId, 
+			score_id = @scoreId, 
+			guess_id = @guessId,
+			closes_at = @closesAt
+		WHERE id = @id
 		RETURNING *
-	`, playerId, scoreId, guessId, id)
+	`, pgx.NamedArgs{
+		"id":       id,
+		"playerId": playerId,
+		"scoreId":  scoreId,
+		"guessId":  guessId,
+		"closesAt": time.Now().Add(roomLifetime),
+	})
 	if err != nil {
 		return domain.Room{}, err
 	}

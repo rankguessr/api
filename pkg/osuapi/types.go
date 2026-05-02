@@ -1,6 +1,8 @@
 package osuapi
 
-import "time"
+import (
+	"time"
+)
 
 type Ruleset string
 
@@ -121,27 +123,37 @@ type BeatmapSet struct {
 }
 
 type ScoreStatistics struct {
-	Count300  int `json:"count_300"`
-	Count100  int `json:"count_100"`
-	Count50   int `json:"count_50"`
-	CountMiss int `json:"count_miss"`
-	CountGeki int `json:"count_geki"`
-	CountKatu int `json:"count_katu"`
+	Great *int `json:"great"`
+	Ok    *int `json:"ok"`
+	Meh   *int `json:"meh"`
+	Miss  *int `json:"miss"`
+}
+
+type ScoreMod struct {
+	Acronym string `json:"acronym"`
 }
 
 type Score struct {
 	ID           int             `json:"id"`
 	PP           float32         `json:"pp"`
-	Mods         []string        `json:"mods"`
+	Mods         []ScoreMod      `json:"mods"`
 	Accuracy     float32         `json:"accuracy"`
 	BeatmapID    int             `json:"beatmap_id"`
 	HasReplay    bool            `json:"has_replay"`
 	ReplayLegacy bool            `json:"replay"`
 	UserId       int             `json:"user_id"`
 	User         User            `json:"user"`
-	Statistics   map[string]any  `json:"statistics"`
+	Statistics   ScoreStatistics `json:"statistics"`
 	BeatmapSet   BeatmapSet      `json:"beatmapset"`
 	Beatmap      BeatmapExtended `json:"beatmap"`
+}
+
+func (s Score) ModsAcronyms() []string {
+	acronyms := make([]string, len(s.Mods))
+	for i, mod := range s.Mods {
+		acronyms[i] = mod.Acronym
+	}
+	return acronyms
 }
 
 func (s Score) Replay() bool {

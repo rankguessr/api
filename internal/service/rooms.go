@@ -19,7 +19,7 @@ import (
 const (
 	maxGuesses          = 15
 	findScoreMaxRetries = 5
-	scoresLimit         = 20
+	scoresLimit         = 15
 )
 
 var refillInterval = 3 * time.Minute
@@ -87,6 +87,8 @@ func (s *rooms) DeleteById(ctx context.Context, id string) error {
 }
 
 func (r *rooms) FindRandomScore(ctx context.Context, accessToken string) (osuapi.Score, error) {
+	// doing a lot of checks here to avoid invalid scores
+	// i figured it out... a had to add ruleset to the request... fuck.
 	for range findScoreMaxRetries {
 		findAttempt := func() (osuapi.Score, error) {
 			p, err := r.players.FindRandom(ctx)
@@ -94,9 +96,10 @@ func (r *rooms) FindRandomScore(ctx context.Context, accessToken string) (osuapi
 				return osuapi.Score{}, err
 			}
 
-			scoreIdx := rand.Intn(scoresLimit)
-
-			scores, err := r.oapi.GetUserScores(ctx, accessToken, p.OsuId, 1, scoreIdx)
+			// getting top15 scores and shuffling them
+			// this is better than fetching only some of scores
+			// because a lot of them do not have replays
+			scores, err := r.oapi.GetUserScores(ctx, accessToken, p.OsuId, scoresLimit, 0)
 			if err != nil {
 				return osuapi.Score{}, err
 			}
@@ -105,26 +108,43 @@ func (r *rooms) FindRandomScore(ctx context.Context, accessToken string) (osuapi
 				return osuapi.Score{}, errors.New("user has no scores")
 			}
 
-			scoreId := scores[0].ID
-			// check if score exists and warm up cache
-			score, err := r.GetScore(ctx, accessToken, scoreId)
-			if err != nil {
-				return osuapi.Score{}, err
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			r.Shuffle(len(scores), func(i, j int) {
+				scores[i], scores[j] = scores[j], scores[i]
+			})
+
+			for _, score := range scores {
+				// most of the checks are basically useless here
+				// except for replay as we are specifying a ruleset now
+				if score.ID == 0 {
+					continue
+				}
+
+				if score.PP == 0 {
+					continue
+				}
+
+				if score.UserId != p.OsuId {
+					continue
+				}
+
+				if !score.Replay() {
+					continue
+				}
+
+				return score, nil
 			}
 
-			if score.PP == 0 {
-				return osuapi.Score{}, errors.New("score has 0 pp")
-			}
-
-			if score.UserId != p.OsuId {
-				return osuapi.Score{}, errors.New("score user id does not match player id")
-			}
-
-			return score, nil
+			return osuapi.Score{}, errors.New("no valid scores found for user")
 		}
 
 		score, err := findAttempt()
 		if err == nil {
+			err = cache.SetScore(r.rdb, ctx, score)
+			if err != nil {
+				slog.ErrorContext(ctx, "failed to set score cache")
+			}
+
 			return score, nil
 		}
 
@@ -211,12 +231,12 @@ func (r *rooms) DeleteIfExpired(ctx context.Context, accessToken string, userId 
 
 		_, _, err = r.guessesSvc.CreateAndUpdateUserElo(
 			ctx, userId, domain.GuessCreate{
-				PlayerID:     player.ID,
 				Guess:        0,
+				PlayerID:     player.ID,
+				Kind:         room.Kind,
 				ScoreID:      room.ScoreID,
 				BeatmapID:    score.BeatmapID,
 				BeatmapSetID: score.Beatmap.BeatmapSetId,
-				Kind:         room.Kind,
 				ActualRank:   player.Statistics.GlobalRank,
 			},
 		)

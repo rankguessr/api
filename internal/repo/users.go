@@ -85,7 +85,6 @@ func (u *users) FindTop(ctx context.Context, limit, offset int) ([]domain.UserEx
 			ROW_NUMBER() OVER (ORDER BY u.elo DESC) as rank
 		FROM users u 
 		JOIN guesses g ON u.osu_id = g.user_id
-		WHERE g.kind = 'v2'
 		GROUP BY u.osu_id
 		ORDER BY u.elo DESC
 		LIMIT $1 OFFSET $2

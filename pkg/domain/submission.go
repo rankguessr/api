@@ -1,12 +1,6 @@
 package domain
 
-type Submission struct {
-	SubmissionCreate
-	ID         string `json:"id"`
-	IsAccepted bool   `json:"is_accepted"`
-	CreatedAt  string `json:"created_at"`
-	UpdatedAt  string `json:"updated_at"`
-}
+import "time"
 
 type SubmissionCreate struct {
 	UserID       int    `json:"user_id"`
@@ -15,4 +9,17 @@ type SubmissionCreate struct {
 	BeatmapID    int    `json:"beatmap_id"`
 	BeatmapsetID int    `json:"beatmapset_id"`
 	Comment      string `json:"comment"`
+}
+
+type Submission struct {
+	SubmissionCreate
+	ID         string    `json:"id"`
+	IsAccepted bool      `json:"is_accepted"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+type SubmissionExtended struct {
+	Submission
+	User User `json:"user"`
 }

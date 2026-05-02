@@ -144,6 +144,12 @@ var migrations = []Entry{
 			);
 		`,
 	},
+	{
+		Version: "v0.1.2",
+		SQL: `
+			ALTER TABLE "submissions" ADD UNIQUE (score_id);
+		`,
+	},
 }
 
 var latest = migrations[len(migrations)-1].Version

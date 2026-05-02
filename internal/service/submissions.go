@@ -14,7 +14,7 @@ type Submissions interface {
 
 	FindRandom(ctx context.Context, userId int) (domain.Submission, error)
 	FindByUser(ctx context.Context, userId int) ([]domain.Submission, error)
-	FindUnaccepted(ctx context.Context) ([]domain.Submission, error)
+	Find(ctx context.Context, accepted bool, limit, page int) ([]domain.SubmissionExtended, error)
 }
 
 type submissions struct {
@@ -41,8 +41,8 @@ func (s *submissions) FindRandom(ctx context.Context, userId int) (domain.Submis
 	return s.repo.FindRandom(ctx, userId)
 }
 
-func (s *submissions) FindUnaccepted(ctx context.Context) ([]domain.Submission, error) {
-	return s.repo.FindUnaccepted(ctx)
+func (s *submissions) Find(ctx context.Context, accepted bool, limit, page int) ([]domain.SubmissionExtended, error) {
+	return s.repo.Find(ctx, accepted, limit, limit*(max(page, 1)-1))
 }
 
 func (s *submissions) SetAccepted(ctx context.Context, id string) error {

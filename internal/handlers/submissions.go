@@ -47,6 +47,10 @@ func SubmissionCreate(submissions service.Submissions, client *osuapi.Client) ec
 			return echo.NewHTTPError(http.StatusNotFound, "failed to get score from osu api").Wrap(err)
 		}
 
+		if !score.Replay() {
+			return echo.NewHTTPError(http.StatusBadRequest, "score must have a replay")
+		}
+
 		submission, err := submissions.Create(ctx, domain.SubmissionCreate{
 			UserID:       session.User.OsuID,
 			PlayerID:     score.User.ID,

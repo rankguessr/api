@@ -10,7 +10,7 @@ COPY ./ ./
 
 RUN go mod download
 
-RUN go build -v -o rankguessr .
+RUN go build -v -o ./rankguessr ./cmd/guessr
 
 # final image
 FROM alpine

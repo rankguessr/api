@@ -116,6 +116,40 @@ var migrations = []Entry{
 			ALTER TABLE "rooms" DROP CONSTRAINT rooms_player_id_fkey;
 		`,
 	},
+	{
+		Version: "v0.1.1",
+		SQL: `
+			ALTER TABLE "users" ADD COLUMN "is_admin" BOOLEAN DEFAULT FALSE;
+			ALTER TABLE "users" ADD COLUMN "available_guesses" INTEGER NOT NULL DEFAULT 15;
+			ALTER TABLE "users" ADD COLUMN "refilled_at" TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+			ALTER TABLE "rooms" ADD UNIQUE (user_id);
+			ALTER TABLE "rooms" ADD COLUMN "kind" TEXT NOT NULL DEFAULT 'v1';
+			ALTER TABLE "rooms" ADD COLUMN "closes_at" TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '1 day';
+
+			ALTER TABLE "guesses" ADD COLUMN "kind" TEXT NOT NULL DEFAULT 'v1';
+
+			CREATE TABLE IF NOT EXISTS "submissions" (
+				"id" CHAR(27) PRIMARY KEY,
+				"user_id" INTEGER NOT NULL,
+				"player_id" INTEGER NOT NULL,
+				"score_id" BIGINT NOT NULL,
+				"beatmap_id" INTEGER NOT NULL,
+				"beatmapset_id" INTEGER NOT NULL,
+				"comment" TEXT NOT NULL DEFAULT '',
+				"is_accepted" BOOLEAN NOT NULL DEFAULT FALSE,
+				"created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				"updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				FOREIGN KEY (user_id) REFERENCES users(osu_id) ON DELETE CASCADE
+			);
+		`,
+	},
+	{
+		Version: "v0.1.2",
+		SQL: `
+			ALTER TABLE "submissions" ADD UNIQUE (score_id);
+		`,
+	},
 }
 
 var latest = migrations[len(migrations)-1].Version

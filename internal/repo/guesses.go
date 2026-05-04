@@ -5,35 +5,38 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rankguessr/api/internal/uow"
 	"github.com/rankguessr/api/pkg/domain"
 	"github.com/rankguessr/api/pkg/utils"
 )
 
-var rowToGuess = pgx.RowToStructByName[domain.Guess]
-var rowToGuessExtended = pgx.RowToStructByName[domain.GuessExtended]
+var (
+	rowToGuess         = pgx.RowToStructByName[domain.Guess]
+	rowToGuessExtended = pgx.RowToStructByName[domain.GuessExtended]
+)
 
 type Guesses interface {
 	CountFromDate(ctx context.Context, from time.Time) (int, error)
 
 	FindLatest(ctx context.Context) ([]domain.Guess, error)
 	FindById(ctx context.Context, id string) (domain.Guess, error)
-	FindByUser(ctx context.Context, userId, limit int) ([]domain.Guess, error)
+	FindByUser(ctx context.Context, userId, limit, offset int) (domain.PagedResult[domain.Guess], error)
 	FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.GuessExtended, error)
 
-	Create(ctx context.Context, userId, playerId, guess, actualRank, elo, scoreId, beatmapId, beatmapSetId int) (int, domain.Guess, error)
+	Create(ctx context.Context, userId, elo int, input domain.GuessCreate) (domain.Guess, error)
 }
 
 type guesses struct {
-	pool *pgxpool.Pool
+	uow *uow.UnitOfWork
 }
 
-func NewGuesses(pool *pgxpool.Pool) Guesses {
-	return &guesses{pool: pool}
+func NewGuesses(uow *uow.UnitOfWork) Guesses {
+	return &guesses{uow: uow}
 }
 
 func (g *guesses) FindById(ctx context.Context, id string) (domain.Guess, error) {
-	rows, err := g.pool.Query(ctx, "SELECT * FROM guesses WHERE id = $1", id)
+	ex := g.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, "SELECT * FROM guesses WHERE id = $1", id)
 	if err != nil {
 		return domain.Guess{}, err
 	}
@@ -41,15 +44,14 @@ func (g *guesses) FindById(ctx context.Context, id string) (domain.Guess, error)
 	return pgx.CollectOneRow(rows, rowToGuess)
 }
 
-const countFromDateQuery = `
-	SELECT COUNT(*) FROM guesses
-	WHERE created_at >= $1
-`
-
 func (g *guesses) CountFromDate(ctx context.Context, from time.Time) (int, error) {
-	var count int
-	err := g.pool.QueryRow(ctx, countFromDateQuery, from).Scan(&count)
-	return count, err
+	ex := g.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, "SELECT COUNT(*) FROM guesses WHERE created_at >= $1 AND kind != 'v1'", from)
+	if err != nil {
+		return 0, err
+	}
+
+	return pgx.CollectExactlyOneRow(rows, pgx.RowTo[int])
 }
 
 const findLatestQuery = `
@@ -59,89 +61,93 @@ const findLatestQuery = `
 `
 
 func (g *guesses) FindLatest(ctx context.Context) ([]domain.Guess, error) {
-	rows, err := g.pool.Query(ctx, findLatestQuery)
+	ex := g.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, findLatestQuery)
 	if err != nil {
 		return nil, err
 	}
 
 	return pgx.CollectRows(rows, rowToGuess)
 }
-
-const findTopFromDateQuery = `
-	SELECT 
-		g.*, to_json(u) AS user 
-	FROM guesses g
-	JOIN users u ON g.user_id = u.osu_id
-	WHERE g.created_at >= $1
-	ORDER BY g.elo DESC 
-	LIMIT $2
-`
 
 func (g *guesses) FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.GuessExtended, error) {
-	rows, err := g.pool.Query(ctx, findTopFromDateQuery, from, limit)
+	query := `
+		SELECT 
+			g.*, to_json(u) AS user 
+		FROM guesses g
+		JOIN users u ON g.user_id = u.osu_id
+		WHERE g.created_at >= $1 AND g.kind != 'v1'
+		ORDER BY g.elo DESC 
+		LIMIT $2
+	`
+
+	ex := g.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, query, from, limit)
 	if err != nil {
 		return nil, err
 	}
 
-	return pgx.CollectRows(rows, pgx.RowToFunc[domain.GuessExtended](rowToGuessExtended))
+	return pgx.CollectRows(rows, rowToGuessExtended)
 }
 
-const createGuessQuery = `
-	INSERT INTO guesses (id, user_id, player_id, guess, actual_rank, elo, beatmap_id, beatmapset_id, score_id)
-	VALUES (@id, @userId, @playerId, @guess, @actualRank, @elo, @beatmapId, @beatmapSetId, @scoreId) RETURNING *
-`
+func (g *guesses) Create(ctx context.Context, userId, elo int, input domain.GuessCreate) (domain.Guess, error) {
+	ex := g.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, `
+		INSERT INTO guesses (id, user_id, player_id, guess, actual_rank, elo, beatmap_id, beatmapset_id, score_id, kind)
+		VALUES (@id, @userId, @playerId, @guess, @actualRank, @elo, @beatmapId, @beatmapSetId, @scoreId, @kind) RETURNING *
+	`, pgx.NamedArgs{
+		"elo":    elo,
+		"userId": userId,
+		"id":     utils.NewID(),
 
-// returns new elo & created guess
-func (g *guesses) Create(ctx context.Context, userId, playerId, guess, actualRank, elo, scoreId, beatmapId, beatmapSetId int) (int, domain.Guess, error) {
-	tx, err := g.pool.Begin(ctx)
-	if err != nil {
-		return 0, domain.Guess{}, err
-	}
-
-	rows, err := tx.Query(ctx, createGuessQuery, pgx.NamedArgs{
-		"elo":        elo,
-		"guess":      guess,
-		"userId":     userId,
-		"playerId":   playerId,
-		"actualRank": actualRank,
-		"id":         utils.NewID(),
-
-		"scoreId":      scoreId,
-		"beatmapId":    beatmapId,
-		"beatmapSetId": beatmapSetId,
+		"guess":        input.Guess,
+		"kind":         input.Kind,
+		"playerId":     input.PlayerID,
+		"actualRank":   input.ActualRank,
+		"scoreId":      input.ScoreID,
+		"beatmapId":    input.BeatmapID,
+		"beatmapSetId": input.BeatmapSetID,
 	})
 	if err != nil {
-		tx.Rollback(ctx)
-		return 0, domain.Guess{}, err
+		return domain.Guess{}, err
 	}
 
-	guessRes, err := pgx.CollectOneRow(rows, rowToGuess)
-	if err != nil {
-		tx.Rollback(ctx)
-		return 0, domain.Guess{}, err
-	}
-
-	rows, err = tx.Query(ctx, "UPDATE users SET elo = GREATEST(0, elo + $1) WHERE osu_id = $2 RETURNING elo", elo, userId)
-	if err != nil {
-		tx.Rollback(ctx)
-		return 0, domain.Guess{}, err
-	}
-
-	newElo, err := pgx.CollectOneRow(rows, pgx.RowTo[int])
-
-	return newElo, guessRes, tx.Commit(ctx)
+	return pgx.CollectOneRow(rows, rowToGuess)
 }
 
-func (g *guesses) FindByUser(ctx context.Context, userId, limit int) ([]domain.Guess, error) {
-	rows, err := g.pool.Query(ctx, `
-		SELECT * FROM guesses
-		WHERE user_id = $1 
-		ORDER BY created_at DESC
-		LIMIT $2
-	`, userId, limit)
+func (g *guesses) FindByUser(ctx context.Context, userId, limit, offset int) (domain.PagedResult[domain.Guess], error) {
+	ex := g.uow.Executor(ctx)
+
+	countRows, err := ex.Query(ctx, `
+		SELECT COUNT(*) FROM guesses WHERE user_id = $1 AND kind != 'v1'
+	`, userId)
 	if err != nil {
-		return nil, err
+		return domain.PagedResult[domain.Guess]{}, err
 	}
 
-	return pgx.CollectRows(rows, rowToGuess)
+	count, err := pgx.CollectExactlyOneRow(countRows, pgx.RowTo[int])
+	if err != nil {
+		return domain.PagedResult[domain.Guess]{}, err
+	}
+
+	rows, err := ex.Query(ctx, `
+		SELECT g.*
+		FROM guesses g
+		WHERE user_id = $1 AND kind != 'v1'
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+	`, userId, limit, offset)
+	if err != nil {
+		return domain.PagedResult[domain.Guess]{}, err
+	}
+
+	guesses, err := pgx.CollectRows(rows, rowToGuess)
+	if err != nil {
+		return domain.PagedResult[domain.Guess]{}, err
+	}
+
+	return domain.PagedResult[domain.Guess]{
+		Items:      guesses,
+		PagesTotal: (count + limit - 1) / limit,
+	}, nil
 }

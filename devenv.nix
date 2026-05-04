@@ -1,8 +1,5 @@
 {
   pkgs,
-  lib,
-  config,
-  inputs,
   ...
 }:
 
@@ -18,7 +15,7 @@
   # test turnstile secret, always returns success
   # use 2x0000000000000000000000000000000AA to fail
   env.TURNSTILE_SECRET = "1x0000000000000000000000000000000AA";
-  env.DATABASE_URL = "postgres://postgres:postgres@127.0.0.1/rankguessr?sslmode=disable";
+  env.DATABASE_URL = "postgres://postgres:postgres@127.0.0.1:5432/rankguessr?sslmode=disable";
   env.REDIS_URL = "redis://127.0.0.1:6379";
 
   packages = [
@@ -27,6 +24,15 @@
   ];
 
   languages.go.enable = true;
+
+  scripts.buildcli.exec = "go build -o ./bin/guessr ./cmd/guessr";
+  scripts.opendb.exec = "psql -U postgres -d rankguessr";
+
+  services.redis = {
+    enable = true;
+    port = 6379;
+    bind = "127.0.0.1";
+  };
 
   services.postgres = {
     enable = true;
@@ -43,15 +49,9 @@
     '';
   };
 
-  services.redis = {
-    enable = true;
-    port = 6379;
-    bind = "127.0.0.1";
-  };
-
   processes = {
     backend = {
-      exec = "go build -o guessr . && ./guessr start";
+      exec = "buildcli && ./bin/guessr start --dev";
     };
   };
 }

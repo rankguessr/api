@@ -10,13 +10,13 @@ COPY ./ ./
 
 RUN go mod download
 
-RUN go build -v -o rankguessr .
+RUN go build -v -o guessr cmd/guessr
 
 # final image
 FROM alpine
 
 WORKDIR /build
 
-COPY --from=builder /build/rankguessr /build/rankguessr
+COPY --from=builder /build/guessr /build/guessr
 
-CMD ["./rankguessr", "start"]
+CMD ["./guessr", "start"]

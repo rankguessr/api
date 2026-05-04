@@ -33,6 +33,15 @@ func SubmissionCreate(submissions service.Submissions, client *osuapi.Client) ec
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid score url").Wrap(err)
 		}
 
+		previous, err := submissions.FindByUser(ctx, session.User.OsuID, false)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to check previous submissions").Wrap(err)
+		}
+
+		if len(previous) >= 15 {
+			return echo.NewHTTPError(http.StatusBadRequest, "submission limit reached").Wrap(utils.ErrLimitExceeded)
+		}
+
 		score, err := client.GetScore(ctx, session.AccessToken, scoreId)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusNotFound, "failed to get score from osu api").Wrap(err)
@@ -102,22 +111,22 @@ func SubmissionSetAccepted(submissions service.Submissions) echo.HandlerFunc {
 	}
 }
 
-func SubmissionFindByUser(submissions service.Submissions) echo.HandlerFunc {
-	return func(c *echo.Context) error {
-		ctx := c.Request().Context()
-		session, err := utils.GetSession(c)
-		if err != nil {
-			return echo.ErrUnauthorized.Wrap(err)
-		}
+// func SubmissionFindByUser(submissions service.Submissions) echo.HandlerFunc {
+// 	return func(c *echo.Context) error {
+// 		ctx := c.Request().Context()
+// 		session, err := utils.GetSession(c)
+// 		if err != nil {
+// 			return echo.ErrUnauthorized.Wrap(err)
+// 		}
 
-		submissions, err := submissions.FindByUser(ctx, session.User.OsuID)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to find submissions").Wrap(err)
-		}
+// 		submissions, err := submissions.FindByUser(ctx, session.User.OsuID)
+// 		if err != nil {
+// 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to find submissions").Wrap(err)
+// 		}
 
-		return c.JSON(http.StatusOK, submissions)
-	}
-}
+// 		return c.JSON(http.StatusOK, submissions)
+// 	}
+// }
 
 func SubmissionsFind(submissions service.Submissions) echo.HandlerFunc {
 	return func(c *echo.Context) error {

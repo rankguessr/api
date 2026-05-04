@@ -20,7 +20,7 @@ type Submissions interface {
 	SetAccepted(ctx context.Context, id string) error
 
 	FindRandom(ctx context.Context, userId int) (domain.Submission, error)
-	FindByUser(ctx context.Context, userId int) ([]domain.Submission, error)
+	FindByUser(ctx context.Context, userId int, accepted bool) ([]domain.Submission, error)
 	Find(ctx context.Context, accepted bool, limit, offset int) ([]domain.SubmissionExtended, error)
 }
 
@@ -59,9 +59,9 @@ func (s *submissions) Delete(ctx context.Context, id string) error {
 	return err
 }
 
-func (s *submissions) FindByUser(ctx context.Context, userId int) ([]domain.Submission, error) {
+func (s *submissions) FindByUser(ctx context.Context, userId int, accepted bool) ([]domain.Submission, error) {
 	ex := s.uow.Executor(ctx)
-	rows, err := ex.Query(ctx, "SELECT * FROM submissions WHERE user_id = $1", userId)
+	rows, err := ex.Query(ctx, "SELECT * FROM submissions WHERE user_id = $1 AND is_accepted = $2", userId, accepted)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (s *submissions) FindRandom(ctx context.Context, userId int) (domain.Submis
 		SELECT * FROM submissions s 
 		WHERE NOT EXISTS (
 			SELECT 1 FROM guesses g
-			WHERE g.is_submission 
+			WHERE g.kind = 'v2sub'
 			AND g.score_id = s.score_id AND g.user_id = $1
 		) AND s.user_id != $1
 		ORDER BY RANDOM() LIMIT 1

@@ -19,12 +19,20 @@ import (
 const RoomStartMaxRetries = 5
 const ScoresLimit = 20
 
-func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Client) echo.HandlerFunc {
+func RoomStart(player service.Players, rooms service.Rooms, subs service.Submissions) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
 		if err != nil {
 			return echo.ErrUnauthorized.Wrap(err)
+		}
+
+		var req struct {
+			Kind domain.RoomKind `json:"kind"`
+		}
+
+		if err := c.Bind(&req); err != nil {
+			return echo.ErrBadRequest.Wrap(err)
 		}
 
 		_, err = rooms.FindByUserUnguessed(ctx, session.User.OsuID)
@@ -37,14 +45,20 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		score, err := rooms.FindRandomScore(ctx, session.AccessToken)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "failed to find a score, try again later")
+		var score osuapi.Score
+		if req.Kind == domain.RoomKindRankedV2 {
+			score, err = rooms.FindRandomScore(ctx, session.AccessToken)
+		} else {
+			score, err = subs.FindRandomWithScore(ctx, session.User.OsuID, session.AccessToken)
 		}
 
-		refill, room, err := rooms.Create(ctx, score.User.ID, session.User.OsuID, score.ID, domain.RoomKindRankedV2)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "failed to create a room, try again later")
+			return echo.NewHTTPError(http.StatusBadRequest, "failed to find a score, try again later").Wrap(err)
+		}
+
+		refill, room, err := rooms.Create(ctx, score.User.ID, session.User.OsuID, score.ID, req.Kind)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "failed to create a room, try again later").Wrap(err)
 		}
 
 		return c.JSON(http.StatusOK, utils.Map{
@@ -54,7 +68,7 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 	}
 }
 
-func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Client) echo.HandlerFunc {
+func RoomGetNext(rooms service.Rooms, players service.Players, subs service.Submissions) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -64,14 +78,28 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 
 		roomId := c.Param("id")
 
-		score, err := rooms.FindRandomScore(ctx, session.AccessToken)
+		room, err := rooms.FindOrDeleteExpired(ctx, roomId, session.AccessToken, session.User.OsuID)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to find a score")
+			return echo.ErrNotFound.Wrap(err)
 		}
 
-		refill, room, err := rooms.SetNext(ctx, roomId, session.User.OsuID, score.User.ID, score.ID)
+		if room.UserID != session.User.OsuID {
+			return echo.ErrUnauthorized
+		}
+
+		var score osuapi.Score
+		if room.Kind == domain.RoomKindRankedV2 {
+			score, err = rooms.FindRandomScore(ctx, session.AccessToken)
+		} else {
+			score, err = subs.FindRandomWithScore(ctx, session.User.OsuID, session.AccessToken)
+		}
 		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to set next score")
+			return echo.NewHTTPError(http.StatusBadRequest, "failed to find a score, try again later").Wrap(err)
+		}
+
+		refill, newRoom, err := rooms.SetNext(ctx, roomId, session.User.OsuID, score.User.ID, score.ID)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to set next score").Wrap(err)
 		}
 
 		return c.JSON(200, utils.Map{
@@ -84,7 +112,7 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 				"statistics": score.Statistics,
 			},
 			"refill":    refill,
-			"closes_at": room.ClosesAt,
+			"closes_at": newRoom.ClosesAt,
 		})
 	}
 }
@@ -130,7 +158,7 @@ func RoomDownloadReplay(rooms service.Rooms, client *osuapi.Client) echo.Handler
 	}
 }
 
-func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Client) echo.HandlerFunc {
+func RoomGetScore(rooms service.Rooms, guesses service.Guess) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -172,6 +200,7 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 				"statistics": room.Score.Statistics,
 				"user":       user,
 			},
+			"kind":      room.Kind,
 			"closes_at": room.ClosesAt,
 			"guess":     guess,
 		})

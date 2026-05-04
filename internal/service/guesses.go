@@ -59,6 +59,10 @@ func (g *guess) CreateAndUpdateUserElo(ctx context.Context, userId int, input do
 			return err
 		}
 
+		if input.Kind != domain.RoomKindRankedV2 {
+			elo = 0
+		}
+
 		newElo, err = g.users.UpdateElo(ctx, userId, elo)
 		if err != nil {
 			return err

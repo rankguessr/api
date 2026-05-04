@@ -90,7 +90,7 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 	sessionsService := service.NewSessions(cfg, sessionsRepo)
 
 	submissionsRepo := repo.NewSubmissions(uow)
-	submissionsService := service.NewSubmissions(submissionsRepo)
+	submissionsService := service.NewSubmissions(submissionsRepo, client)
 
 	e := echo.New()
 	e.Use(middleware.Recover())
@@ -155,12 +155,12 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 	{
 		room.Use(sessions)
 		room.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20.0)))
-		room.GET("/:id/score", handlers.RoomGetScore(roomsService, guessService, client))
+		room.GET("/:id/score", handlers.RoomGetScore(roomsService, guessService))
 		room.GET("/replay/:filename", handlers.RoomDownloadReplay(roomsService, client))
 
 		room.POST("/:id", handlers.RoomSubmitGuess(roomsService, guessService, client, cfg))
-		room.POST("/:id/next", handlers.RoomGetNext(roomsService, playerService, client))
-		room.POST("/start", handlers.RoomStart(playerService, roomsService, client))
+		room.POST("/:id/next", handlers.RoomGetNext(roomsService, playerService, submissionsService))
+		room.POST("/start", handlers.RoomStart(playerService, roomsService, submissionsService))
 	}
 
 	submissions := e.Group("/submissions")

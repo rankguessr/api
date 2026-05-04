@@ -14,7 +14,7 @@ func buildStatsKey(limit, page int) string {
 }
 
 func SetStats(rdb *redis.Client, ctx context.Context, stats domain.Stats, limit, page int) error {
-	return SetJSON(rdb, ctx, buildStatsKey(limit, page), stats, 3*time.Minute)
+	return SetJSON(rdb, ctx, buildStatsKey(limit, page), stats, 30*time.Second)
 }
 
 func GetStats(rdb *redis.Client, ctx context.Context, limit, page int) (domain.Stats, error) {

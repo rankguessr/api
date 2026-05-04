@@ -103,7 +103,7 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(60.0)))
 	e.Use(middleware.ContextTimeout(time.Second * 30))
 
-	if !isDev {
+	if !isDev && cfg.SentryDSN != "" {
 		if err := sentry.Init(sentry.ClientOptions{
 			Dsn:           cfg.SentryDSN,
 			EnableLogs:    true,

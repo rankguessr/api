@@ -105,7 +105,7 @@ func RoomGetNext(rooms service.Rooms, players service.Players, subs service.Subm
 		return c.JSON(200, utils.Map{
 			"score": utils.Map{
 				"pp":         score.PP,
-				"mods":       score.Mods,
+				"mods":       score.ModsAcronyms(),
 				"accuracy":   score.Accuracy,
 				"beatmapset": score.BeatmapSet,
 				"beatmap":    score.Beatmap,

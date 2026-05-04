@@ -1,4 +1,4 @@
-name: Test and Publish new docker image
+name: Publish a new docker image
 
 on:
   push:
@@ -12,9 +12,23 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Build and publish image
-        run: |
-          docker login --username rankguessr --password ${{ secrets.GH_PAT }} ghcr.io
-          docker build --platform linux/amd64,linux/arm64 -t ghcr.io/rankguessr/api:${{ github.ref_name }} -t ghcr.io/rankguessr/api:latest .
-          docker push ghcr.io/rankguessr/api:${{ github.ref_name }}
-          docker push ghcr.io/rankguessr/api:latest
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: rankguessr
+          password: ${{ secrets.GH_PAT }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/rankguessr/api:latest,ghcr.io/rankguessr/api:${{ github.ref_name }}

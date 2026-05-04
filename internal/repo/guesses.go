@@ -76,7 +76,7 @@ func (g *guesses) FindTopFromDate(ctx context.Context, from time.Time, limit int
 			g.*, to_json(u) AS user 
 		FROM guesses g
 		JOIN users u ON g.user_id = u.osu_id
-		WHERE g.created_at >= $1 AND g.kind == 'v2'
+		WHERE g.created_at >= $1 AND g.kind = 'v2'
 		ORDER BY g.elo DESC 
 		LIMIT $2
 	`

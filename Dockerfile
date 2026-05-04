@@ -10,7 +10,7 @@ COPY ./ ./
 
 RUN go mod download
 
-RUN go build -v -o guessr cmd/guessr
+RUN go build -v -o ./guessr ./cmd/guessr
 
 # final image
 FROM alpine

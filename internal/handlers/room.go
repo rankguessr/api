@@ -3,8 +3,6 @@ package handlers
 import (
 	"errors"
 	"fmt"
-	"log"
-	"math/rand"
 	"net/http"
 	"strings"
 
@@ -21,7 +19,7 @@ import (
 const RoomStartMaxRetries = 5
 const ScoresLimit = 20
 
-func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Client) echo.HandlerFunc {
+func RoomStart(player service.Players, rooms service.Rooms, subs service.Submissions) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -29,12 +27,17 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 			return echo.ErrUnauthorized.Wrap(err)
 		}
 
+		var req struct {
+			Kind domain.RoomKind `json:"kind"`
+		}
+
+		if err := c.Bind(&req); err != nil {
+			return echo.ErrBadRequest.Wrap(err)
+		}
+
 		_, err = rooms.FindByUserUnguessed(ctx, session.User.OsuID)
 		if err == nil {
-			log.Println("found")
-			return c.JSON(http.StatusBadRequest, utils.Map{
-				"message": "user is already in room",
-			})
+			return echo.NewHTTPError(http.StatusBadRequest, "user is already in room")
 		}
 
 		err = rooms.DeleteByUser(ctx, session.User.OsuID)
@@ -42,54 +45,30 @@ func RoomStart(player service.Players, rooms service.Rooms, client *osuapi.Clien
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		for range RoomStartMaxRetries {
-			tryFind := func() (string, error) {
-				p, err := player.FindRandom(ctx)
-				if err != nil {
-					return "", err
-				}
-
-				scoreIdx := rand.Intn(ScoresLimit)
-
-				scores, err := client.GetUserScores(ctx, session.AccessToken, p.OsuId, 1, scoreIdx)
-				if err != nil || len(scores) == 0 {
-					return "", err
-				}
-
-				scoreId := scores[0].ID
-				// check if score exists and warm up cache
-				score, err := client.GetScore(ctx, session.AccessToken, scoreId)
-				if err != nil {
-					return "", err
-				}
-
-				if score.PP == 0 {
-					return "", errors.New("score has 0 pp")
-				}
-
-				room, err := rooms.Create(ctx, score.User.ID, session.User.OsuID, score.ID)
-				if err != nil {
-					return "", err
-				}
-
-				return room.ID, nil
-			}
-
-			roomId, err := tryFind()
-			if err == nil {
-				return c.JSON(200, utils.Map{
-					"room_id": roomId,
-				})
-			}
+		var score osuapi.Score
+		if req.Kind == domain.RoomKindRankedV2 {
+			score, err = rooms.FindRandomScore(ctx, session.AccessToken)
+		} else {
+			score, err = subs.FindRandomWithScore(ctx, session.User.OsuID, session.AccessToken)
 		}
 
-		return c.JSON(http.StatusBadRequest, utils.Map{
-			"message": "failed to find a score",
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "failed to find a score, try again later").Wrap(err)
+		}
+
+		refill, room, err := rooms.Create(ctx, score.User.ID, session.User.OsuID, score.ID, req.Kind)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "failed to create a room, try again later").Wrap(err)
+		}
+
+		return c.JSON(http.StatusOK, utils.Map{
+			"refill":  refill,
+			"room_id": room.ID,
 		})
 	}
 }
 
-func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Client) echo.HandlerFunc {
+func RoomGetNext(rooms service.Rooms, players service.Players, subs service.Submissions) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -99,58 +78,41 @@ func RoomGetNext(rooms service.Rooms, players service.Players, client *osuapi.Cl
 
 		roomId := c.Param("id")
 
-		// TODO: remove copy pasted bullshit
-		for range RoomStartMaxRetries {
-			tryFind := func() (osuapi.Score, error) {
-				p, err := players.FindRandom(ctx)
-				if err != nil {
-					return osuapi.Score{}, err
-				}
-
-				scoreIdx := rand.Intn(ScoresLimit)
-
-				scores, err := client.GetUserScores(ctx, session.AccessToken, p.OsuId, 1, scoreIdx)
-				if err != nil || len(scores) == 0 {
-					return osuapi.Score{}, err
-				}
-
-				scoreId := scores[0].ID
-				// check if score exists and warm up cache
-				score, err := rooms.GetScore(ctx, session.AccessToken, scoreId)
-				if err != nil {
-					return osuapi.Score{}, err
-				}
-
-				if score.PP == 0 {
-					return osuapi.Score{}, errors.New("score has 0 pp")
-				}
-
-				_, err = rooms.UpdateScore(ctx, roomId, score.User.ID, score.ID)
-				if err != nil {
-					return osuapi.Score{}, err
-				}
-
-				return score, nil
-			}
-
-			score, err := tryFind()
-			if err == nil {
-				return c.JSON(200, utils.Map{
-					"score": utils.Map{
-						"pp":         score.PP,
-						"mods":       score.Mods,
-						"accuracy":   score.Accuracy,
-						"beatmapset": score.BeatmapSet,
-						"beatmap":    score.Beatmap,
-						"statistics": score.Statistics,
-					},
-					"guess": nil,
-				})
-			}
+		room, err := rooms.FindOrDeleteExpired(ctx, roomId, session.AccessToken, session.User.OsuID)
+		if err != nil {
+			return echo.ErrNotFound.Wrap(err)
 		}
 
-		return c.JSON(http.StatusBadRequest, utils.Map{
-			"message": "failed to find a score",
+		if room.UserID != session.User.OsuID {
+			return echo.ErrUnauthorized
+		}
+
+		var score osuapi.Score
+		if room.Kind == domain.RoomKindRankedV2 {
+			score, err = rooms.FindRandomScore(ctx, session.AccessToken)
+		} else {
+			score, err = subs.FindRandomWithScore(ctx, session.User.OsuID, session.AccessToken)
+		}
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "failed to find a score, try again later").Wrap(err)
+		}
+
+		refill, newRoom, err := rooms.SetNext(ctx, roomId, session.User.OsuID, score.User.ID, score.ID)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to set next score").Wrap(err)
+		}
+
+		return c.JSON(200, utils.Map{
+			"score": utils.Map{
+				"pp":         score.PP,
+				"mods":       score.Mods,
+				"accuracy":   score.Accuracy,
+				"beatmapset": score.BeatmapSet,
+				"beatmap":    score.Beatmap,
+				"statistics": score.Statistics,
+			},
+			"refill":    refill,
+			"closes_at": newRoom.ClosesAt,
 		})
 	}
 }
@@ -166,7 +128,7 @@ func RoomDownloadReplay(rooms service.Rooms, client *osuapi.Client) echo.Handler
 		filename := c.Param("filename")
 
 		roomId := strings.TrimSuffix(filename, ".osr")
-		room, err := rooms.FindByID(ctx, roomId)
+		room, err := rooms.FindOrDeleteExpired(ctx, roomId, session.AccessToken, session.User.OsuID)
 		if err != nil {
 			return echo.ErrNotFound.Wrap(err)
 		}
@@ -196,7 +158,7 @@ func RoomDownloadReplay(rooms service.Rooms, client *osuapi.Client) echo.Handler
 	}
 }
 
-func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Client) echo.HandlerFunc {
+func RoomGetScore(rooms service.Rooms, guesses service.Guess) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -205,7 +167,7 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 		}
 
 		roomId := c.Param("id")
-		room, err := rooms.FindByID(ctx, roomId)
+		room, err := rooms.FindOrDeleteExpired(ctx, roomId, session.AccessToken, session.User.OsuID)
 		if err != nil {
 			return echo.ErrNotFound.Wrap(err)
 		}
@@ -223,32 +185,24 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess, client *osuapi.Cli
 			guess = &g
 		}
 
-		score, err := rooms.GetScore(ctx, session.AccessToken, room.ScoreID)
-		if err != nil {
-			err := rooms.DeleteById(ctx, room.ID)
-			if err != nil {
-				return err
-			}
-
-			return echo.ErrNotFound.Wrap(err)
-		}
-
 		var user *osuapi.User
 		if guess != nil {
-			user = &score.User
+			user = &room.Score.User
 		}
 
 		return c.JSON(200, utils.Map{
 			"score": utils.Map{
-				"pp":         score.PP,
-				"mods":       score.Mods,
-				"accuracy":   score.Accuracy,
-				"beatmapset": score.BeatmapSet,
-				"beatmap":    score.Beatmap,
-				"statistics": score.Statistics,
+				"pp":         room.Score.PP,
+				"mods":       room.Score.ModsAcronyms(),
+				"accuracy":   room.Score.Accuracy,
+				"beatmapset": room.Score.BeatmapSet,
+				"beatmap":    room.Score.Beatmap,
+				"statistics": room.Score.Statistics,
 				"user":       user,
 			},
-			"guess": guess,
+			"kind":      room.Kind,
+			"closes_at": room.ClosesAt,
+			"guess":     guess,
 		})
 	}
 }
@@ -258,7 +212,7 @@ type submitRequest struct {
 	Token string `json:"token"`
 }
 
-func RoomSubmitGuess(cfg *config.Config, rooms service.Rooms, guesses service.Guess, client *osuapi.Client) echo.HandlerFunc {
+func RoomSubmitGuess(rooms service.Rooms, guesses service.Guess, client *osuapi.Client, cfg *config.Config) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -282,13 +236,13 @@ func RoomSubmitGuess(cfg *config.Config, rooms service.Rooms, guesses service.Gu
 		}
 
 		roomId := c.Param("id")
-		room, err := rooms.FindByID(ctx, roomId)
+		room, err := rooms.FindOrDeleteExpired(ctx, roomId, session.AccessToken, session.User.OsuID)
 		if err != nil {
-			return echo.ErrInternalServerError.Wrap(err)
+			return echo.ErrNotFound.Wrap(err)
 		}
 
-		if req.Guess >= 3000000 {
-			return echo.NewHTTPError(http.StatusBadRequest, "guess must be less than 3 million")
+		if req.Guess > 3000000 || req.Guess < 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, "guess must be between 1 and 3 million")
 		}
 
 		if room.UserID != session.User.OsuID {
@@ -299,28 +253,32 @@ func RoomSubmitGuess(cfg *config.Config, rooms service.Rooms, guesses service.Gu
 			return echo.NewHTTPError(http.StatusBadRequest, "room is already closed")
 		}
 
-		score, err := rooms.GetScore(ctx, session.AccessToken, room.ScoreID)
+		player, err := client.GetUser(ctx, session.AccessToken, room.Score.User.ID)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		player, err := client.GetUser(ctx, session.AccessToken, score.User.ID)
-		if err != nil {
-			return echo.ErrInternalServerError.Wrap(err)
-		}
-
-		newElo, guess, err := guesses.Create(
-			ctx, session.User.OsuID, player.ID, req.Guess,
-			player.Statistics.GlobalRank, room.ScoreID, score.BeatmapID, score.Beatmap.BeatmapSetId,
+		elo, guess, err := guesses.CreateAndUpdateUserElo(
+			ctx, session.User.OsuID, domain.GuessCreate{
+				PlayerID:     player.ID,
+				Guess:        req.Guess,
+				ScoreID:      room.ScoreID,
+				BeatmapID:    room.Score.BeatmapID,
+				BeatmapSetID: room.Score.Beatmap.BeatmapSetId,
+				ActualRank:   player.Statistics.GlobalRank,
+				Kind:         room.Kind,
+			},
 		)
 
+		// this should never happen with new pool
+		// TODO: check player rank against ranges before creating a room, it's cached anyway
 		if errors.Is(err, ranking.ErrRangeNotFound) {
 			err := rooms.DeleteById(ctx, roomId)
 			if err != nil {
 				return echo.ErrInternalServerError.Wrap(err)
 			}
 
-			return echo.NewHTTPError(http.StatusInternalServerError, "actual rank is out of range")
+			return echo.NewHTTPError(http.StatusInternalServerError, "actual rank is out of range, deleted the room, please try again")
 		}
 
 		if err != nil {
@@ -335,7 +293,7 @@ func RoomSubmitGuess(cfg *config.Config, rooms service.Rooms, guesses service.Gu
 		return c.JSON(200, utils.Map{
 			"guess":   guess,
 			"player":  player,
-			"new_elo": newElo,
+			"new_elo": elo,
 		})
 	}
 }

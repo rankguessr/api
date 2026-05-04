@@ -12,21 +12,22 @@ import (
 	"github.com/rankguessr/api/pkg/utils"
 )
 
-func AuthMe(user service.User) echo.HandlerFunc {
-	return func(ctx *echo.Context) error {
-		session, err := utils.GetSession(ctx)
+func AuthMe(user service.User, rooms service.Rooms) echo.HandlerFunc {
+	return func(c *echo.Context) error {
+		ctx := c.Request().Context()
+		session, err := utils.GetSession(c)
 		if err != nil {
-			return ctx.JSON(http.StatusUnauthorized, utils.Map{
-				"error": "invalid session token",
-			})
+			return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized").Wrap(err)
 		}
 
-		u, err := user.FindByOsuID(ctx.Request().Context(), session.User.OsuID)
+		u, err := user.FindByOsuID(ctx, session.User.OsuID)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		return ctx.JSON(200, u)
+		return c.JSON(http.StatusOK, utils.Map{
+			"user": u,
+		})
 	}
 }
 

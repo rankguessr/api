@@ -133,27 +133,35 @@ func (c *Client) GetUserScores(ctx context.Context, accessToken string, userId i
 		return nil, err
 	}
 
+	SetDefaultHeaders(req)
 	SetAuthHeader(req, accessToken)
+	req.Header.Set("x-api-version", "20240529")
 	return DoAndParse[[]Score](req)
 }
 
 func (c *Client) GetScore(ctx context.Context, accessToken string, scoreId int) (Score, error) {
-	req, err := NewAPIv2Request(ctx, "GET", fmt.Sprintf("/scores/%d", scoreId), nil)
+	path := fmt.Sprintf("/scores/%d", scoreId)
+	req, err := NewAPIv2Request(ctx, "GET", path, nil)
 	if err != nil {
 		return Score{}, err
 	}
 
 	SetAuthHeader(req, accessToken)
+	// just dont ask me what it does
+	req.Header.Set("x-api-version", "20240529")
 	return DoAndParse[Score](req)
 }
 
 func (c *Client) DownloadReplay(ctx context.Context, accessToken string, scoreId int) ([]byte, error) {
-	req, err := NewAPIv2Request(ctx, "GET", fmt.Sprintf("/scores/%d/download", scoreId), nil)
+	path := fmt.Sprintf("/scores/%d/download", scoreId)
+
+	req, err := NewAPIv2Request(ctx, "GET", path, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	SetAuthHeader(req, accessToken)
+	req.Header.Set("x-api-version", "20240529")
 
 	resp, err := Do(req)
 	if err != nil {
@@ -173,10 +181,19 @@ func (c *Client) GetMultiRooms(ctx context.Context, accessToken string) ([]Multi
 	return DoAndParse[[]MultiRoom](req)
 }
 
-func (c *Client) GetRankings(ctx context.Context, accessToken string, cursor *Cursor) (Rankings, error) {
+type RankingsOpts struct {
+	Country *string
+}
+
+func (c *Client) GetRankings(ctx context.Context, accessToken string, cursor *Cursor, opts ...RankingsOpts) (Rankings, error) {
 	data := url.Values{}
 	if cursor != nil {
 		data.Set("cursor[page]", strconv.Itoa(cursor.Page))
+	}
+
+	if len(opts) > 0 && opts[0].Country != nil {
+		code := strings.ToUpper(*opts[0].Country)
+		data.Set("country", code)
 	}
 
 	path := fmt.Sprintf("/rankings/osu/global?%s", data.Encode())

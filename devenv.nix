@@ -17,7 +17,6 @@
   env.TURNSTILE_SECRET = "1x0000000000000000000000000000000AA";
   env.DATABASE_URL = "postgres://postgres:postgres@127.0.0.1:5432/rankguessr?sslmode=disable";
   env.REDIS_URL = "redis://127.0.0.1:6379";
-  env.ENABLE_SENTRY = "0";
 
   packages = [
     pkgs.git

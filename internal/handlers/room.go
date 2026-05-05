@@ -49,7 +49,7 @@ func RoomStart(player service.Players, rooms service.Rooms, subs service.Submiss
 		if req.Kind == domain.RoomKindRankedV2 {
 			score, err = rooms.FindRandomScore(ctx, session.AccessToken)
 		} else {
-			score, err = subs.FindRandomWithScore(ctx, session.User.OsuID, session.AccessToken)
+			score, _, err = subs.FindRandomWithScore(ctx, session.User.OsuID, session.AccessToken)
 		}
 
 		if err != nil {
@@ -87,11 +87,13 @@ func RoomGetNext(rooms service.Rooms, players service.Players, subs service.Subm
 			return echo.ErrUnauthorized
 		}
 
+		comment := ""
+
 		var score osuapi.Score
 		if room.Kind == domain.RoomKindRankedV2 {
 			score, err = rooms.FindRandomScore(ctx, session.AccessToken)
 		} else {
-			score, err = subs.FindRandomWithScore(ctx, session.User.OsuID, session.AccessToken)
+			score, comment, err = subs.FindRandomWithScore(ctx, session.User.OsuID, session.AccessToken)
 		}
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "failed to find a score, try again later").Wrap(err)
@@ -112,6 +114,7 @@ func RoomGetNext(rooms service.Rooms, players service.Players, subs service.Subm
 				"statistics": score.Statistics,
 			},
 			"refill":    refill,
+			"comment":   comment,
 			"closes_at": newRoom.ClosesAt,
 		})
 	}
@@ -158,7 +161,7 @@ func RoomDownloadReplay(rooms service.Rooms, client *osuapi.Client) echo.Handler
 	}
 }
 
-func RoomGetScore(rooms service.Rooms, guesses service.Guess) echo.HandlerFunc {
+func RoomGetScore(rooms service.Rooms, guesses service.Guess, subs service.Submissions) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -190,6 +193,15 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess) echo.HandlerFunc {
 			user = &room.Score.User
 		}
 
+		comment := ""
+		if room.Kind == domain.RoomKindSubmissionV2 {
+			sub, err := subs.FindByScoreID(ctx, room.ScoreID)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "failed to find a score, try again later").Wrap(err)
+			}
+			comment = sub.Comment
+		}
+
 		return c.JSON(200, utils.Map{
 			"score": utils.Map{
 				"pp":         room.Score.PP,
@@ -200,6 +212,7 @@ func RoomGetScore(rooms service.Rooms, guesses service.Guess) echo.HandlerFunc {
 				"statistics": room.Score.Statistics,
 				"user":       user,
 			},
+			"comment":   comment,
 			"kind":      room.Kind,
 			"closes_at": room.ClosesAt,
 			"guess":     guess,

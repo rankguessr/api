@@ -8,10 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/getsentry/sentry-go"
-	sentryecho "github.com/getsentry/sentry-go/echo"
-	sentryslog "github.com/getsentry/sentry-go/slog"
 	"github.com/jackc/pgx/v5/pgxpool"
+	echoprometheus "github.com/labstack/echo-prometheus"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 	"github.com/rankguessr/api/internal/config"
@@ -27,7 +25,7 @@ import (
 )
 
 func StartCmd(ctx context.Context, c *cli.Command) error {
-	isDev := c.Bool("dev")
+	// isDev := c.Bool("dev")
 
 	cfg, err := config.Read()
 	if err != nil {
@@ -103,35 +101,16 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(60.0)))
 	e.Use(middleware.ContextTimeout(time.Second * 30))
 
-	if !isDev && cfg.SentryDSN != "" {
-		if err := sentry.Init(sentry.ClientOptions{
-			Dsn:           cfg.SentryDSN,
-			EnableLogs:    true,
-			EnableTracing: true,
-		}); err != nil {
-			fmt.Printf("Sentry initialization failed: %v\n", err)
-		}
-
-		handler := sentryslog.Option{
-			EventLevel: []slog.Level{slog.LevelError},
-			LogLevel:   []slog.Level{slog.LevelWarn, slog.LevelInfo, slog.LevelDebug},
-		}.NewSentryHandler(ctx)
-
-		logger := slog.New(handler)
-
-		defer sentry.Flush(2 * time.Second)
-
-		slog.SetDefault(logger)
-		e.Use(sentryecho.New(sentryecho.Options{}))
-	} else {
-		logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-		slog.SetDefault(logger)
-		e.Use(rmiddleware.RequestLogger())
-	}
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+	e.Use(rmiddleware.RequestLogger())
 
 	sessions := rmiddleware.Session(client, sessionsService)
 
+	e.Use(echoprometheus.NewMiddleware("rankguessr"))
+
 	{
+		e.GET("/metrics", echoprometheus.NewHandler())
 		e.GET("/health", handlers.HealthCheck)
 		e.GET("/stats", handlers.PublicStatsGet(guessService, userService, rdb))
 	}
@@ -155,7 +134,7 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 	{
 		room.Use(sessions)
 		room.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20.0)))
-		room.GET("/:id/score", handlers.RoomGetScore(roomsService, guessService))
+		room.GET("/:id/score", handlers.RoomGetScore(roomsService, guessService, submissionsService))
 		room.GET("/replay/:filename", handlers.RoomDownloadReplay(roomsService, client))
 
 		room.POST("/:id", handlers.RoomSubmitGuess(roomsService, guessService, client, cfg))

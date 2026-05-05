@@ -20,6 +20,8 @@ type Submissions interface {
 	SetAccepted(ctx context.Context, id string) error
 
 	FindRandom(ctx context.Context, userId int) (domain.Submission, error)
+	FindByID(ctx context.Context, id string) (domain.Submission, error)
+	FindByScoreID(ctx context.Context, scoreId int) (domain.Submission, error)
 	FindByUser(ctx context.Context, userId int, accepted bool) ([]domain.Submission, error)
 	Find(ctx context.Context, accepted bool, limit, offset int) ([]domain.SubmissionExtended, error)
 }
@@ -30,6 +32,26 @@ type submissions struct {
 
 func NewSubmissions(uow *uow.UnitOfWork) Submissions {
 	return &submissions{uow: uow}
+}
+
+func (s *submissions) FindByID(ctx context.Context, id string) (domain.Submission, error) {
+	ex := s.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, "SELECT * FROM submissions WHERE id = $1", id)
+	if err != nil {
+		return domain.Submission{}, err
+	}
+
+	return pgx.CollectOneRow(rows, rowToSubmission)
+}
+
+func (s *submissions) FindByScoreID(ctx context.Context, scoreId int) (domain.Submission, error) {
+	ex := s.uow.Executor(ctx)
+	rows, err := ex.Query(ctx, "SELECT * FROM submissions WHERE score_id = $1", scoreId)
+	if err != nil {
+		return domain.Submission{}, err
+	}
+
+	return pgx.CollectOneRow(rows, rowToSubmission)
 }
 
 func (s *submissions) Create(ctx context.Context, input domain.SubmissionCreate) (domain.Submission, error) {

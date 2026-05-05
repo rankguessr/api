@@ -8,7 +8,6 @@ import (
 
 type Config struct {
 	RedisURL        string `env:"REDIS_URL,required"`
-	SentryDSN       string `env:"SENTRY_DSN,required"`
 	PORT            string `env:"PORT,required"`
 	AppURL          string `env:"APP_URL,required"`
 	WebURL          string `env:"WEB_URL,required"`

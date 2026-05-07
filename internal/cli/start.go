@@ -12,6 +12,9 @@ import (
 	echoprometheus "github.com/labstack/echo-prometheus"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/minio/minio-go/v7/pkg/lifecycle"
 	"github.com/rankguessr/api/internal/config"
 	"github.com/rankguessr/api/internal/handlers"
 	rmiddleware "github.com/rankguessr/api/internal/middleware"
@@ -24,8 +27,25 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+var lifecycleConfig = &lifecycle.Configuration{
+	Rules: []lifecycle.Rule{
+		{
+			ID: "OldReplays",
+			Expiration: lifecycle.Expiration{
+				Days: 1,
+			},
+			RuleFilter: lifecycle.Filter{
+				Prefix: "replays/",
+			},
+			Status: "Enabled",
+		},
+	},
+}
+
 func StartCmd(ctx context.Context, c *cli.Command) error {
 	// isDev := c.Bool("dev")
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
 
 	cfg, err := config.Read()
 	if err != nil {
@@ -62,11 +82,33 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 		log.Fatal("failed to parse redis conn string")
 	}
 
+	minioClient, err := minio.New(cfg.S3Endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(cfg.S3AccessKey, cfg.S3SecretKey, ""),
+		Secure: false,
+	})
+	if err != nil {
+		log.Fatal("s3 connection failed: ", err)
+	}
+
+	exists, err := minioClient.BucketExists(ctx, cfg.S3BucketName)
+	if err != nil {
+		log.Fatal("failed to check if bucket exists: ", err)
+	}
+
+	if !exists {
+		log.Fatal("bucket does not exist: ", cfg.S3BucketName)
+	}
+
+	err = minioClient.SetBucketLifecycle(ctx, cfg.S3BucketName, lifecycleConfig)
+	if err != nil {
+		slog.Error("failed to set bucket lifecycle: ", slog.String("err", err.Error()))
+	}
+
 	rdb := redis.NewClient(opt)
 
 	err = rdb.Ping(ctx).Err()
 	if err != nil {
-		log.Fatal("failed to ping redis: ", err)
+		log.Fatal("redis ping failed: ", err)
 	}
 
 	client := osuapi.NewClient(cfg.OsuClientID, cfg.OsuClientSecret)
@@ -90,6 +132,8 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 	submissionsRepo := repo.NewSubmissions(uow)
 	submissionsService := service.NewSubmissions(submissionsRepo, client)
 
+	replaysSvc := service.NewReplays(cfg, minioClient)
+
 	e := echo.New()
 	e.Use(middleware.Recover())
 	e.Use(middleware.RequestID())
@@ -101,8 +145,6 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(60.0)))
 	e.Use(middleware.ContextTimeout(time.Second * 30))
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
 	e.Use(rmiddleware.RequestLogger())
 
 	sessions := rmiddleware.Session(client, sessionsService)
@@ -135,8 +177,9 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 		room.Use(sessions)
 		room.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20.0)))
 		room.GET("/:id/score", handlers.RoomGetScore(roomsService, guessService, submissionsService))
-		room.GET("/replay/:filename", handlers.RoomDownloadReplay(roomsService, client))
+		room.GET("/replay/:filename", handlers.RoomDownloadReplay(roomsService, replaysSvc, client))
 
+		room.POST("/:id/prepare", handlers.RoomPrepareReplay(roomsService, client, replaysSvc))
 		room.POST("/:id", handlers.RoomSubmitGuess(roomsService, guessService, client, cfg))
 		room.POST("/:id/next", handlers.RoomGetNext(roomsService, playerService, submissionsService))
 		room.POST("/start", handlers.RoomStart(playerService, roomsService, submissionsService))

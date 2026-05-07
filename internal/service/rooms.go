@@ -31,6 +31,8 @@ type Rooms interface {
 	FindOrDeleteExpired(ctx context.Context, id, accessToken string, userId int) (domain.RoomExtended, error)
 
 	UpdateGuessID(ctx context.Context, id string, guessId string) error
+	UpdateReplayURL(ctx context.Context, id string, replayURL string) error
+
 	SetNext(ctx context.Context, id string, userId, playerId, scoreId int) (refill domain.RefillResult, room domain.Room, err error)
 	Create(ctx context.Context, playerId, userId, scoreId int, kind domain.RoomKind) (domain.RefillResult, domain.Room, error)
 
@@ -64,6 +66,10 @@ func NewRooms(
 		rooms: repo, users: users, players: players, guessesSvc: guessesSvc,
 		uow: uow, oapi: oapi, rdb: rdb,
 	}
+}
+
+func (s *rooms) UpdateReplayURL(ctx context.Context, id string, replayURL string) error {
+	return s.rooms.UpdateReplayURL(ctx, id, replayURL)
 }
 
 func (s *rooms) DeleteByUserUnguessed(ctx context.Context, userId int) error {

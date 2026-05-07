@@ -16,6 +16,13 @@ type Config struct {
 	OsuClientSecret string `env:"OSU_CLIENT_SECRET,required"`
 	EncryptionKey   string `env:"ENCRYPTION_KEY,required"`
 	DatabaseURL     string `env:"DATABASE_URL,required"`
+
+	S3Endpoint   string `env:"S3_ENDPOINT,required"`
+	S3Region     string `env:"S3_REGION,required"`
+	S3BucketName string `env:"S3_BUCKET_NAME,required"`
+	S3PublicURL  string `env:"S3_PUBLIC_URL,required"`
+	S3SecretKey  string `env:"S3_SECRET_KEY,required"`
+	S3AccessKey  string `env:"S3_ACCESS_KEY,required"`
 }
 
 func (c *Config) WebDomain() string {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v5"
 	"github.com/rankguessr/api/internal/config"
@@ -13,7 +14,6 @@ import (
 	"github.com/rankguessr/api/pkg/osuapi"
 	"github.com/rankguessr/api/pkg/ranking"
 	"github.com/rankguessr/api/pkg/utils"
-	"github.com/wieku/rplpa"
 )
 
 const RoomStartMaxRetries = 5
@@ -120,7 +120,54 @@ func RoomGetNext(rooms service.Rooms, players service.Players, subs service.Subm
 	}
 }
 
-func RoomDownloadReplay(rooms service.Rooms, client *osuapi.Client) echo.HandlerFunc {
+func RoomPrepareReplay(rooms service.Rooms, client *osuapi.Client, replays service.Replays) echo.HandlerFunc {
+	return func(c *echo.Context) error {
+		ctx := c.Request().Context()
+		session, err := utils.GetSession(c)
+		if err != nil {
+			return err
+		}
+
+		roomId := c.Param("id")
+		room, err := rooms.FindOrDeleteExpired(ctx, roomId, session.AccessToken, session.User.OsuID)
+		if err != nil {
+			return echo.ErrNotFound.Wrap(err)
+		}
+
+		if room.UserID != session.User.OsuID {
+			return echo.ErrUnauthorized
+		}
+
+		if room.ReplayURL != "" {
+			return c.JSON(200, utils.Map{
+				"url": room.ReplayURL,
+			})
+		}
+
+		replay, err := client.DownloadReplay(ctx, session.AccessToken, room.ScoreID)
+		if err != nil {
+			return echo.ErrInternalServerError.Wrap(err)
+		}
+
+		ttl := time.Until(room.ClosesAt)
+		filename := fmt.Sprintf("%s.osr", room.ID)
+		presigned, err := replays.AnonymizeAndPresign(ctx, replay, filename, ttl)
+		if err != nil {
+			return echo.ErrInternalServerError.Wrap(err)
+		}
+
+		err = rooms.UpdateReplayURL(ctx, room.ID, presigned)
+		if err != nil {
+			return echo.ErrInternalServerError.Wrap(err)
+		}
+
+		return c.JSON(200, utils.Map{
+			"url": presigned,
+		})
+	}
+}
+
+func RoomDownloadReplay(rooms service.Rooms, replays service.Replays, client *osuapi.Client) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -136,28 +183,27 @@ func RoomDownloadReplay(rooms service.Rooms, client *osuapi.Client) echo.Handler
 			return echo.ErrNotFound.Wrap(err)
 		}
 
+		if room.ReplayURL != "" {
+			return c.Redirect(http.StatusFound, room.ReplayURL)
+		}
+
 		replay, err := client.DownloadReplay(ctx, session.AccessToken, room.ScoreID)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		r, err := rplpa.ParseReplay(replay)
+		ttl := time.Until(room.ClosesAt)
+		presigned, err := replays.AnonymizeAndPresign(ctx, replay, filename, ttl)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		r.Username = "rankguessr"
-		r.ScoreID = 0
-		if r.ScoreInfo != nil {
-			r.ScoreInfo.ScoreId = 0
-		}
-
-		anonymized, err := rplpa.WriteReplay(r)
+		err = rooms.UpdateReplayURL(ctx, roomId, presigned)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		return c.Blob(200, "application/x-osu-replay", anonymized)
+		return c.Redirect(http.StatusFound, presigned)
 	}
 }
 

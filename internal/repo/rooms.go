@@ -27,6 +27,7 @@ type Rooms interface {
 	DeleteByUser(ctx context.Context, userId int) error
 
 	UpdateGuessID(ctx context.Context, id string, guessId string) error
+	UpdateReplayURL(ctx context.Context, id string, replayURL string) error
 	UpdateScore(ctx context.Context, id string, playerId, scoreId int, guessId *string) (domain.Room, error)
 }
 
@@ -36,6 +37,18 @@ type rooms struct {
 
 func NewRooms(uow *uow.UnitOfWork) Rooms {
 	return &rooms{uow: uow}
+}
+
+func (r *rooms) UpdateReplayURL(ctx context.Context, id string, replayURL string) error {
+	ex := r.uow.Executor(ctx)
+	_, err := ex.Exec(ctx,
+		"UPDATE rooms SET replay_url = @replayURL WHERE id = @id",
+		pgx.NamedArgs{
+			"replayURL": replayURL,
+			"id":        id,
+		})
+
+	return err
 }
 
 func (r *rooms) DeleteByUserUnguessed(ctx context.Context, userId int) error {
@@ -107,7 +120,8 @@ func (r *rooms) UpdateScore(ctx context.Context, id string, playerId, scoreId in
 			player_id = @playerId, 
 			score_id = @scoreId, 
 			guess_id = @guessId,
-			closes_at = @closesAt
+			closes_at = @closesAt,
+			replay_url = ''
 		WHERE id = @id
 		RETURNING *
 	`, pgx.NamedArgs{

@@ -150,6 +150,12 @@ var migrations = []Entry{
 			ALTER TABLE "submissions" ADD UNIQUE (score_id);
 		`,
 	},
+	{
+		Version: "v0.1.3",
+		SQL: `
+			ALTER TABLE "rooms" ADD COLUMN "replay_url" TEXT DEFAULT '';
+		`,
+	},
 }
 
 var latest = migrations[len(migrations)-1].Version

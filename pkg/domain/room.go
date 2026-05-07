@@ -20,6 +20,7 @@ type Room struct {
 	ScoreID   int       `json:"score_id"`
 	PlayerID  int       `json:"player_id"`
 	Kind      RoomKind  `json:"kind"`
+	ReplayURL string    `json:"replay_url"`
 	GuessID   *string   `json:"guess_id" db:"guess_id"`
 	ClosesAt  time.Time `json:"closes_at"`
 	CreatedAt time.Time `json:"created_at"`

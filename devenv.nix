@@ -18,6 +18,13 @@
   env.DATABASE_URL = "postgres://postgres:postgres@127.0.0.1:5432/rankguessr?sslmode=disable";
   env.REDIS_URL = "redis://127.0.0.1:6379";
 
+  env.S3_ENDPOINT = "127.0.0.1:9000";
+  env.S3_REGION = "us-east-1";
+  env.S3_BUCKET_NAME = "default";
+  env.S3_PUBLIC_URL = "http://localhost:9000";
+  env.S3_SECRET_KEY = "minioadmin";
+  env.S3_ACCESS_KEY = "minioadmin";
+
   packages = [
     pkgs.git
     pkgs.air
@@ -46,6 +53,14 @@
     listen_addresses = "127.0.0.1";
     initialScript = ''
       CREATE ROLE postgres SUPERUSER;
+    '';
+  };
+
+  services.minio = {
+    enable = true;
+    afterStart = ''
+      mc mb local/default
+      mc anonymous set public local/default
     '';
   };
 

@@ -6,7 +6,7 @@ WORKDIR /build
 COPY ./go.mod ./
 COPY ./go.sum ./
 
-COPY ./ ./
+COPY . .
 
 RUN go mod download
 

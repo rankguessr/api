@@ -14,7 +14,7 @@ type Guess interface {
 	CountFromDate(ctx context.Context, from time.Time) (int, error)
 
 	FindLatest(ctx context.Context) ([]domain.Guess, error)
-	FindByUser(ctx context.Context, userId, limit, page int) (domain.PagedResult[domain.Guess], error)
+	FindByUser(ctx context.Context, userId, limit, page int) (domain.Paged[domain.Guess], error)
 	FindById(ctx context.Context, id string) (domain.Guess, error)
 	FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.GuessExtended, error)
 
@@ -74,6 +74,6 @@ func (g *guess) CreateAndUpdateUserElo(ctx context.Context, userId int, input do
 	return newElo, guess, err
 }
 
-func (g *guess) FindByUser(ctx context.Context, userId, limit, page int) (domain.PagedResult[domain.Guess], error) {
+func (g *guess) FindByUser(ctx context.Context, userId, limit, page int) (domain.Paged[domain.Guess], error) {
 	return g.guesses.FindByUser(ctx, userId, limit, limit*(max(page, 1)-1))
 }

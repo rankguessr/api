@@ -6,6 +6,7 @@ type SubmissionCreate struct {
 	UserID       int    `json:"user_id"`
 	PlayerID     int    `json:"player_id"`
 	ScoreID      int    `json:"score_id"`
+	IsAnonymous  bool   `json:"is_anonymous"`
 	BeatmapID    int    `json:"beatmap_id"`
 	BeatmapsetID int    `json:"beatmapset_id"`
 	Comment      string `json:"comment"`

@@ -20,7 +20,7 @@ func HealthCheck(ctx *echo.Context) error {
 	})
 }
 
-func PublicStatsGet(guess service.Guess, users service.User, rdb *redis.Client) echo.HandlerFunc {
+func PublicGetTopUsers(users service.User, rdb *redis.Client) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		limit, err := strconv.Atoi(c.QueryParam("limit"))
@@ -33,7 +33,29 @@ func PublicStatsGet(guess service.Guess, users service.User, rdb *redis.Client) 
 			page = 1
 		}
 
-		stats, err := cache.GetStats(rdb, ctx, limit, page)
+		cached, err := cache.GetTopUsers(rdb, ctx, limit, page)
+		if err == nil {
+			return c.JSON(200, cached)
+		}
+
+		topUsers, err := users.FindTop(ctx, limit, page)
+		if err != nil {
+			return echo.ErrInternalServerError.Wrap(err)
+		}
+
+		err = cache.SetTopUsers(rdb, ctx, topUsers, limit, page)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to set top users cache", "error", err)
+		}
+
+		return c.JSON(200, topUsers)
+	}
+}
+
+func PublicGetStats(guess service.Guess, users service.User, rdb *redis.Client) echo.HandlerFunc {
+	return func(c *echo.Context) error {
+		ctx := c.Request().Context()
+		stats, err := cache.GetStats(rdb, ctx)
 		if err == nil {
 			return c.JSON(200, stats)
 		}
@@ -53,7 +75,7 @@ func PublicStatsGet(guess service.Guess, users service.User, rdb *redis.Client) 
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		topUsers, err := users.FindTop(ctx, limit, page)
+		topUsers, err := users.FindTop(ctx, 10, 1)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}
@@ -65,7 +87,7 @@ func PublicStatsGet(guess service.Guess, users service.User, rdb *redis.Client) 
 			Best:        bestGuesses,
 		}
 
-		err = cache.SetStats(rdb, ctx, stats, limit, page)
+		err = cache.SetStats(rdb, ctx, stats)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to set stats cache")
 		}

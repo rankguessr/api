@@ -20,7 +20,7 @@ type Guesses interface {
 
 	FindLatest(ctx context.Context) ([]domain.Guess, error)
 	FindById(ctx context.Context, id string) (domain.Guess, error)
-	FindByUser(ctx context.Context, userId, limit, offset int) (domain.PagedResult[domain.Guess], error)
+	FindByUser(ctx context.Context, userId, limit, offset int) (domain.Paged[domain.Guess], error)
 	FindTopFromDate(ctx context.Context, from time.Time, limit int) ([]domain.GuessExtended, error)
 
 	Create(ctx context.Context, userId, elo int, input domain.GuessCreate) (domain.Guess, error)
@@ -115,19 +115,19 @@ func (g *guesses) Create(ctx context.Context, userId, elo int, input domain.Gues
 	return pgx.CollectOneRow(rows, rowToGuess)
 }
 
-func (g *guesses) FindByUser(ctx context.Context, userId, limit, offset int) (domain.PagedResult[domain.Guess], error) {
+func (g *guesses) FindByUser(ctx context.Context, userId, limit, offset int) (domain.Paged[domain.Guess], error) {
 	ex := g.uow.Executor(ctx)
 
 	countRows, err := ex.Query(ctx, `
 		SELECT COUNT(*) FROM guesses WHERE user_id = $1 AND kind != 'v1'
 	`, userId)
 	if err != nil {
-		return domain.PagedResult[domain.Guess]{}, err
+		return domain.Paged[domain.Guess]{}, err
 	}
 
 	count, err := pgx.CollectExactlyOneRow(countRows, pgx.RowTo[int])
 	if err != nil {
-		return domain.PagedResult[domain.Guess]{}, err
+		return domain.Paged[domain.Guess]{}, err
 	}
 
 	rows, err := ex.Query(ctx, `
@@ -138,15 +138,15 @@ func (g *guesses) FindByUser(ctx context.Context, userId, limit, offset int) (do
 		LIMIT $2 OFFSET $3
 	`, userId, limit, offset)
 	if err != nil {
-		return domain.PagedResult[domain.Guess]{}, err
+		return domain.Paged[domain.Guess]{}, err
 	}
 
 	guesses, err := pgx.CollectRows(rows, rowToGuess)
 	if err != nil {
-		return domain.PagedResult[domain.Guess]{}, err
+		return domain.Paged[domain.Guess]{}, err
 	}
 
-	return domain.PagedResult[domain.Guess]{
+	return domain.Paged[domain.Guess]{
 		Items:      guesses,
 		PagesTotal: (count + limit - 1) / limit,
 	}, nil

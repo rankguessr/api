@@ -12,6 +12,7 @@ devenv.local.yaml
 .env
 tmp
 bin
+out
 
 .DS_Store
 collected

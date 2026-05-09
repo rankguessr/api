@@ -114,23 +114,23 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 	client := osuapi.NewClient(cfg.OsuClientID, cfg.OsuClientSecret)
 
 	uow := uow.New(pool)
-	userRepo := repo.NewUsers(uow)
-	userService := service.NewUser(userRepo)
+	usersRepo := repo.NewUsers(uow)
+	usersSvc := service.NewUser(usersRepo)
 
-	playerRepo := repo.NewPlayers(uow)
-	playerService := service.NewPlayer(playerRepo)
+	playersRepo := repo.NewPlayers(uow)
+	playersSvc := service.NewPlayer(playersRepo)
 
-	guessRepo := repo.NewGuesses(uow)
-	guessService := service.NewGuess(guessRepo, userRepo, uow)
+	guessesRepo := repo.NewGuesses(uow)
+	guessesSvc := service.NewGuess(guessesRepo, usersRepo, uow)
 
 	roomsRepo := repo.NewRooms(uow)
-	roomsService := service.NewRooms(roomsRepo, userRepo, playerRepo, guessService, client, rdb, uow)
+	roomsSvc := service.NewRooms(roomsRepo, usersRepo, playersRepo, guessesSvc, client, rdb, uow)
 
 	sessionsRepo := repo.NewSessions(uow)
-	sessionsService := service.NewSessions(cfg, sessionsRepo)
+	sessionsSvc := service.NewSessions(cfg, sessionsRepo)
 
 	submissionsRepo := repo.NewSubmissions(uow)
-	submissionsService := service.NewSubmissions(submissionsRepo, client)
+	submissionsSvc := service.NewSubmissions(submissionsRepo, client)
 
 	replaysSvc := service.NewReplays(cfg, minioClient)
 
@@ -147,52 +147,57 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 
 	e.Use(rmiddleware.RequestLogger())
 
-	sessions := rmiddleware.Session(client, sessionsService)
+	sessions := rmiddleware.Session(client, sessionsSvc)
 
 	e.Use(echoprometheus.NewMiddleware("rankguessr"))
 
 	{
 		e.GET("/metrics", echoprometheus.NewHandler())
 		e.GET("/health", handlers.HealthCheck)
-		e.GET("/stats", handlers.PublicStatsGet(guessService, userService, rdb))
+	}
+
+	stats := e.Group("/stats")
+	{
+		stats.GET("", handlers.PublicGetStats(guessesSvc, usersSvc, rdb))
+		stats.GET("/top-users", handlers.PublicGetTopUsers(usersSvc, rdb))
 	}
 
 	auth := e.Group("/auth")
 	{
 		auth.GET("/login", handlers.AuthLogin(cfg))
-		auth.GET("/callback", handlers.AuthCallback(cfg, client, userService, sessionsService))
+		auth.GET("/callback", handlers.AuthCallback(cfg, client, usersSvc, sessionsSvc))
 		auth.GET("/logout", handlers.AuthLogout(cfg))
 	}
 
 	user := e.Group("/user")
 	{
 		user.Use(sessions)
-		user.GET("/me", handlers.AuthMe(userService, roomsService))
-		user.GET("/guesses", handlers.UserGetGuesses(guessService))
-		user.GET("/room", handlers.UserGetCurrentRoom(roomsService))
+		user.GET("/me", handlers.AuthMe(usersSvc, roomsSvc))
+		user.GET("/guesses", handlers.UserGetGuesses(guessesSvc))
+		user.GET("/room", handlers.UserGetCurrentRoom(roomsSvc))
 	}
 
 	room := e.Group("/room")
 	{
 		room.Use(sessions)
 		room.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20.0)))
-		room.GET("/:id/score", handlers.RoomGetScore(roomsService, guessService, submissionsService))
-		room.GET("/replay/:filename", handlers.RoomDownloadReplay(roomsService, replaysSvc, client))
+		room.GET("/:id/score", handlers.RoomGetScore(roomsSvc, guessesSvc, submissionsSvc))
+		room.GET("/replay/:filename", handlers.RoomDownloadReplay(roomsSvc, replaysSvc, client))
 
-		room.POST("/:id/prepare", handlers.RoomPrepareReplay(roomsService, client, replaysSvc))
-		room.POST("/:id", handlers.RoomSubmitGuess(roomsService, guessService, client, cfg))
-		room.POST("/:id/next", handlers.RoomGetNext(roomsService, playerService, submissionsService))
-		room.POST("/start", handlers.RoomStart(playerService, roomsService, submissionsService))
+		room.POST("/:id/prepare", handlers.RoomPrepareReplay(roomsSvc, client, replaysSvc))
+		room.POST("/:id", handlers.RoomSubmitGuess(roomsSvc, guessesSvc, client, cfg))
+		room.POST("/:id/next", handlers.RoomGetNext(roomsSvc, playersSvc, submissionsSvc))
+		room.POST("/start", handlers.RoomStart(playersSvc, roomsSvc, submissionsSvc))
 	}
 
 	submissions := e.Group("/submissions")
 	{
 		submissions.Use(sessions)
-		submissions.GET("", handlers.SubmissionsFind(submissionsService))
-		submissions.POST("", handlers.SubmissionCreate(submissionsService, client))
-		submissions.POST("/:id/accept", handlers.SubmissionSetAccepted(submissionsService))
+		submissions.GET("", handlers.SubmissionsFind(submissionsSvc))
+		submissions.POST("", handlers.SubmissionCreate(submissionsSvc, client))
+		submissions.POST("/:id/accept", handlers.SubmissionSetAccepted(submissionsSvc))
 
-		submissions.DELETE("/:id", handlers.SubmissionDelete(submissionsService))
+		submissions.DELETE("/:id", handlers.SubmissionDelete(submissionsSvc))
 	}
 
 	return e.Start(fmt.Sprintf(":%s", cfg.PORT))

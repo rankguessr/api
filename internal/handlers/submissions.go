@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"io"
 	"net/http"
 	"strconv"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/rankguessr/api/pkg/domain"
 	"github.com/rankguessr/api/pkg/osuapi"
 	"github.com/rankguessr/api/pkg/utils"
+	"github.com/wieku/rplpa"
 )
 
 func SubmissionCreate(submissions service.Submissions, client *osuapi.Client) echo.HandlerFunc {
@@ -19,27 +21,62 @@ func SubmissionCreate(submissions service.Submissions, client *osuapi.Client) ec
 			return echo.ErrUnauthorized.Wrap(err)
 		}
 
-		var req struct {
-			Comment  string `json:"comment"`
-			ScoreURL string `json:"score_url"`
+		comment := c.FormValue("comment")
+		if comment == "null" {
+			comment = ""
 		}
 
-		if err := c.Bind(&req); err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid request body").Wrap(err)
+		if len(comment) > 500 {
+			return echo.NewHTTPError(http.StatusBadRequest, "comment is too long").Wrap(utils.ErrLimitExceeded)
 		}
 
-		scoreId, err := utils.ParseScoreURL(req.ScoreURL)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid score url").Wrap(err)
-		}
+		anonymous := c.FormValue("is_anonymous") == "true"
 
 		previous, err := submissions.FindByUser(ctx, session.User.OsuID, false)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to check previous submissions").Wrap(err)
 		}
 
-		if len(previous) >= 15 {
+		if len(previous) >= 5 {
 			return echo.NewHTTPError(http.StatusBadRequest, "submission limit reached").Wrap(utils.ErrLimitExceeded)
+		}
+
+		var scoreId int
+		form, err := c.MultipartForm()
+		if err == nil && form.File["score_file"] != nil {
+			scoreFile, _ := c.FormFile("score_file")
+			src, err := scoreFile.Open()
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "failed to open score file").Wrap(err)
+			}
+			defer src.Close()
+
+			if scoreFile.Size > 10*1024*1024 {
+				return echo.NewHTTPError(http.StatusBadRequest, "score file is too large").Wrap(utils.ErrLimitExceeded)
+			}
+
+			data, err := io.ReadAll(src)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "failed to read score file").Wrap(err)
+			}
+
+			replay, err := rplpa.ParseReplay(data)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "failed to parse score file").Wrap(err)
+			}
+
+			if replay.ScoreInfo != nil {
+				scoreId = int(replay.ScoreInfo.ScoreId)
+			} else {
+				scoreId = int(replay.ScoreID)
+			}
+		} else if scoreUrl := c.FormValue("score_url"); scoreUrl != "" {
+			scoreId, err = utils.ParseScoreURL(scoreUrl)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusBadRequest, "invalid score url").Wrap(err)
+			}
+		} else {
+			return echo.NewHTTPError(http.StatusBadRequest, "score url or file is required")
 		}
 
 		score, err := client.GetScore(ctx, session.AccessToken, scoreId)
@@ -47,15 +84,12 @@ func SubmissionCreate(submissions service.Submissions, client *osuapi.Client) ec
 			return echo.NewHTTPError(http.StatusNotFound, "failed to get score from osu api").Wrap(err)
 		}
 
-		if !score.Replay() {
-			return echo.NewHTTPError(http.StatusBadRequest, "score must have a replay")
-		}
-
 		submission, err := submissions.Create(ctx, domain.SubmissionCreate{
 			UserID:       session.User.OsuID,
 			PlayerID:     score.User.ID,
 			ScoreID:      score.ID,
-			Comment:      req.Comment,
+			Comment:      comment,
+			IsAnonymous:  anonymous,
 			BeatmapID:    score.Beatmap.ID,
 			BeatmapsetID: score.Beatmap.BeatmapSetId,
 		})

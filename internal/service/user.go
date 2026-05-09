@@ -11,8 +11,8 @@ import (
 type User interface {
 	Upsert(ctx context.Context, osuId int, username, avatarURL, countryCode string) error
 
-	FindTop(ctx context.Context, limit, page int) ([]domain.UserExtended, error)
 	FindByOsuID(ctx context.Context, osuId int) (domain.User, error)
+	FindTop(ctx context.Context, limit, page int) (domain.Paged[domain.UserExtended], error)
 }
 
 type user struct {
@@ -23,9 +23,9 @@ func NewUser(repo repo.Users) User {
 	return &user{repo: repo}
 }
 
-func (u *user) FindTop(ctx context.Context, limit, page int) ([]domain.UserExtended, error) {
-	if limit > 50 {
-		return nil, utils.ErrLimitExceeded
+func (u *user) FindTop(ctx context.Context, limit, page int) (domain.Paged[domain.UserExtended], error) {
+	if limit > 15 {
+		return domain.Paged[domain.UserExtended]{}, utils.ErrLimitExceeded
 	}
 
 	return u.repo.FindTop(ctx, limit, limit*(max(page, 1)-1))

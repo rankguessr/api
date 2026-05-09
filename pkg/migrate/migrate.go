@@ -156,6 +156,12 @@ var migrations = []Entry{
 			ALTER TABLE "rooms" ADD COLUMN "replay_url" TEXT DEFAULT '';
 		`,
 	},
+	{
+		Version: "v0.1.4",
+		SQL: `
+			ALTER TABLE "submissions" ADD COLUMN "is_anonymous" BOOLEAN NOT NULL DEFAULT FALSE;
+		`,
+	},
 }
 
 var latest = migrations[len(migrations)-1].Version

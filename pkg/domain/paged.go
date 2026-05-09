@@ -1,6 +1,6 @@
 package domain
 
-type PagedResult[T any] struct {
+type Paged[T any] struct {
 	Items      []T `json:"items"`
 	PagesTotal int `json:"pages_total"`
 }

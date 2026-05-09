@@ -4,7 +4,7 @@
 }:
 
 {
-  # required in .env: OSU_CLIENT_ID, OSU_CLIENT_SECRET, SENTRY_DSN
+  # required in .env: OSU_CLIENT_ID, OSU_CLIENT_SECRET
   dotenv.enable = true;
 
   env.PORT = "8080";

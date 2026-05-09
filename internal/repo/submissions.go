@@ -57,8 +57,8 @@ func (s *submissions) FindByScoreID(ctx context.Context, scoreId int) (domain.Su
 func (s *submissions) Create(ctx context.Context, input domain.SubmissionCreate) (domain.Submission, error) {
 	ex := s.uow.Executor(ctx)
 	rows, err := ex.Query(ctx, `
-		INSERT INTO submissions (id, user_id, player_id, score_id, comment, beatmap_id, beatmapset_id) 
-		VALUES (@id, @userId, @playerId, @scoreId, @comment, @beatmapId, @beatmapsetId) RETURNING *
+		INSERT INTO submissions (id, user_id, player_id, score_id, comment, beatmap_id, beatmapset_id, is_anonymous) 
+		VALUES (@id, @userId, @playerId, @scoreId, @comment, @beatmapId, @beatmapsetId, @isAnonymous) RETURNING *
 	`, pgx.NamedArgs{
 		"id":           utils.NewID(),
 		"userId":       input.UserID,
@@ -67,6 +67,7 @@ func (s *submissions) Create(ctx context.Context, input domain.SubmissionCreate)
 		"comment":      input.Comment,
 		"beatmapId":    input.BeatmapID,
 		"beatmapsetId": input.BeatmapsetID,
+		"isAnonymous":  input.IsAnonymous,
 	})
 	if err != nil {
 		return domain.Submission{}, err

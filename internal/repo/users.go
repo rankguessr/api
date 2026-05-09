@@ -19,7 +19,7 @@ type Users interface {
 	Upsert(ctx context.Context, osuId int, username, avatarURL, countryCode string) error
 	UpdateAvailableGuesses(ctx context.Context, userId int, guesses uint, refilledAt time.Time) error
 
-	FindTop(ctx context.Context, limit, offset int) ([]domain.UserExtended, error)
+	FindTop(ctx context.Context, limit, offset int) (domain.Paged[domain.UserExtended], error)
 	FindByOsuID(ctx context.Context, osuId int) (domain.User, error)
 	FindForUpdate(ctx context.Context, osuId int) (domain.User, error)
 }
@@ -77,8 +77,24 @@ func (u *users) FindByOsuID(ctx context.Context, osuId int) (domain.User, error)
 	return pgx.CollectOneRow(rows, rowToUser)
 }
 
-func (u *users) FindTop(ctx context.Context, limit, offset int) ([]domain.UserExtended, error) {
+func (u *users) FindTop(ctx context.Context, limit, offset int) (domain.Paged[domain.UserExtended], error) {
 	ex := u.uow.Executor(ctx)
+	countRows, err := ex.Query(ctx, `
+		SELECT COUNT(*) 
+		FROM users u 
+		WHERE EXISTS (
+    		SELECT 1 FROM guesses g WHERE g.user_id = u.osu_id
+		);
+	`)
+	if err != nil {
+		return domain.Paged[domain.UserExtended]{}, err
+	}
+
+	count, err := pgx.CollectExactlyOneRow(countRows, pgx.RowTo[int])
+	if err != nil {
+		return domain.Paged[domain.UserExtended]{}, err
+	}
+
 	rows, err := ex.Query(ctx, `
 		SELECT u.*, 
 			COUNT(g) AS total_guesses,
@@ -90,10 +106,18 @@ func (u *users) FindTop(ctx context.Context, limit, offset int) ([]domain.UserEx
 		LIMIT $1 OFFSET $2
 	`, limit, offset)
 	if err != nil {
-		return nil, err
+		return domain.Paged[domain.UserExtended]{}, err
 	}
 
-	return pgx.CollectRows(rows, rowToUserExtended)
+	users, err := pgx.CollectRows(rows, rowToUserExtended)
+	if err != nil {
+		return domain.Paged[domain.UserExtended]{}, err
+	}
+
+	return domain.Paged[domain.UserExtended]{
+		Items:      users,
+		PagesTotal: (count + limit - 1) / limit,
+	}, nil
 }
 
 func (u *users) Upsert(ctx context.Context, osuId int, username, avatarURL, countryCode string) error {

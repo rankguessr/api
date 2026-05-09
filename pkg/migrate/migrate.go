@@ -162,6 +162,13 @@ var migrations = []Entry{
 			ALTER TABLE "submissions" ADD COLUMN "is_anonymous" BOOLEAN NOT NULL DEFAULT FALSE;
 		`,
 	},
+	{
+		Version: "v0.1.5",
+		SQL: `
+		    -- does submission have replay attached or should it be fetched from osu api
+			ALTER TABLE "submissions" ADD COLUMN "has_replay" BOOLEAN NOT NULL DEFAULT FALSE;
+		`,
+	},
 }
 
 var latest = migrations[len(migrations)-1].Version

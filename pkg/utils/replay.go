@@ -2,10 +2,15 @@ package utils
 
 import "github.com/wieku/rplpa"
 
-func AnonymizeReplay(data []byte) ([]byte, error) {
+func AnonymizeReplay(data []byte) (int, []byte, error) {
 	r, err := rplpa.ParseReplay(data)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
+	}
+
+	scoreId := r.ScoreID
+	if r.ScoreInfo != nil {
+		scoreId = r.ScoreInfo.ScoreId
 	}
 
 	r.Username = "rankguessr"
@@ -16,8 +21,8 @@ func AnonymizeReplay(data []byte) ([]byte, error) {
 
 	anonymized, err := rplpa.WriteReplay(r)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
-	return anonymized, nil
+	return int(scoreId), anonymized, nil
 }

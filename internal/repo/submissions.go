@@ -57,8 +57,8 @@ func (s *submissions) FindByScoreID(ctx context.Context, scoreId int) (domain.Su
 func (s *submissions) Create(ctx context.Context, input domain.SubmissionCreate) (domain.Submission, error) {
 	ex := s.uow.Executor(ctx)
 	rows, err := ex.Query(ctx, `
-		INSERT INTO submissions (id, user_id, player_id, score_id, comment, beatmap_id, beatmapset_id, is_anonymous) 
-		VALUES (@id, @userId, @playerId, @scoreId, @comment, @beatmapId, @beatmapsetId, @isAnonymous) RETURNING *
+		INSERT INTO submissions (id, user_id, player_id, score_id, comment, beatmap_id, beatmapset_id, is_anonymous, has_replay) 
+		VALUES (@id, @userId, @playerId, @scoreId, @comment, @beatmapId, @beatmapsetId, @isAnonymous, @hasReplay) RETURNING *
 	`, pgx.NamedArgs{
 		"id":           utils.NewID(),
 		"userId":       input.UserID,
@@ -68,6 +68,7 @@ func (s *submissions) Create(ctx context.Context, input domain.SubmissionCreate)
 		"beatmapId":    input.BeatmapID,
 		"beatmapsetId": input.BeatmapsetID,
 		"isAnonymous":  input.IsAnonymous,
+		"hasReplay":    input.HasReplay,
 	})
 	if err != nil {
 		return domain.Submission{}, err
@@ -100,7 +101,7 @@ func (s *submissions) FindRandom(ctx context.Context, userId int) (domain.Submis
 			SELECT 1 FROM guesses g
 			WHERE g.kind = 'v2sub'
 			AND g.score_id = s.score_id AND g.user_id = $1
-		) AND s.user_id != $1
+		) AND s.is_accepted
 		ORDER BY RANDOM() LIMIT 1
 	`, userId)
 	if err != nil {

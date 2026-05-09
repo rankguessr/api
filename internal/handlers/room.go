@@ -120,7 +120,7 @@ func RoomGetNext(rooms service.Rooms, players service.Players, subs service.Subm
 	}
 }
 
-func RoomPrepareReplay(rooms service.Rooms, client *osuapi.Client, replays service.Replays) echo.HandlerFunc {
+func RoomPrepareReplay(rooms service.Rooms, client *osuapi.Client, replays service.Replays, submissions service.Submissions) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -144,12 +144,38 @@ func RoomPrepareReplay(rooms service.Rooms, client *osuapi.Client, replays servi
 			})
 		}
 
+		ttl := time.Until(room.ClosesAt)
+
+		// if it's a submission room and we already have a replay in s3,
+		// presign and return the url instead of fetching from osu api
+		if room.Kind == domain.RoomKindSubmissionV2 {
+			sub, err := submissions.FindByScoreID(ctx, room.ScoreID)
+			if err != nil {
+				return echo.ErrNotFound.Wrap(err)
+			}
+
+			if sub.HasReplay {
+				presigned, err := replays.PresignSubmission(ctx, sub.ScoreID, ttl)
+				if err != nil {
+					return echo.ErrInternalServerError.Wrap(err)
+				}
+
+				err = rooms.UpdateReplayURL(ctx, roomId, presigned)
+				if err != nil {
+					return echo.ErrInternalServerError.Wrap(err)
+				}
+
+				return c.JSON(200, utils.Map{
+					"url": presigned,
+				})
+			}
+		}
+
 		replay, err := client.DownloadReplay(ctx, session.AccessToken, room.ScoreID)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		ttl := time.Until(room.ClosesAt)
 		filename := fmt.Sprintf("%s.osr", room.ID)
 		presigned, err := replays.AnonymizeAndPresign(ctx, replay, filename, ttl)
 		if err != nil {
@@ -167,7 +193,7 @@ func RoomPrepareReplay(rooms service.Rooms, client *osuapi.Client, replays servi
 	}
 }
 
-func RoomDownloadReplay(rooms service.Rooms, replays service.Replays, client *osuapi.Client) echo.HandlerFunc {
+func RoomDownloadReplay(rooms service.Rooms, replays service.Replays, submissions service.Submissions, client *osuapi.Client) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -187,12 +213,35 @@ func RoomDownloadReplay(rooms service.Rooms, replays service.Replays, client *os
 			return c.Redirect(http.StatusFound, room.ReplayURL)
 		}
 
+		ttl := time.Until(room.ClosesAt)
+		if room.Kind == domain.RoomKindSubmissionV2 {
+			sub, err := submissions.FindByScoreID(ctx, room.ScoreID)
+			if err != nil {
+				return echo.ErrNotFound.Wrap(err)
+			}
+
+			if sub.HasReplay {
+				presigned, err := replays.PresignSubmission(ctx, sub.ScoreID, ttl)
+				if err != nil {
+					return echo.ErrInternalServerError.Wrap(err)
+				}
+
+				err = rooms.UpdateReplayURL(ctx, roomId, presigned)
+				if err != nil {
+					return echo.ErrInternalServerError.Wrap(err)
+				}
+
+				return c.JSON(200, utils.Map{
+					"url": presigned,
+				})
+			}
+		}
+
 		replay, err := client.DownloadReplay(ctx, session.AccessToken, room.ScoreID)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)
 		}
 
-		ttl := time.Until(room.ClosesAt)
 		presigned, err := replays.AnonymizeAndPresign(ctx, replay, filename, ttl)
 		if err != nil {
 			return echo.ErrInternalServerError.Wrap(err)

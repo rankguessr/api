@@ -182,9 +182,9 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 		room.Use(sessions)
 		room.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20.0)))
 		room.GET("/:id/score", handlers.RoomGetScore(roomsSvc, guessesSvc, submissionsSvc))
-		room.GET("/replay/:filename", handlers.RoomDownloadReplay(roomsSvc, replaysSvc, client))
+		room.GET("/replay/:filename", handlers.RoomDownloadReplay(roomsSvc, replaysSvc, submissionsSvc, client))
 
-		room.POST("/:id/prepare", handlers.RoomPrepareReplay(roomsSvc, client, replaysSvc))
+		room.POST("/:id/prepare", handlers.RoomPrepareReplay(roomsSvc, client, replaysSvc, submissionsSvc))
 		room.POST("/:id", handlers.RoomSubmitGuess(roomsSvc, guessesSvc, client, cfg))
 		room.POST("/:id/next", handlers.RoomGetNext(roomsSvc, playersSvc, submissionsSvc))
 		room.POST("/start", handlers.RoomStart(playersSvc, roomsSvc, submissionsSvc))
@@ -194,7 +194,7 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 	{
 		submissions.Use(sessions)
 		submissions.GET("", handlers.SubmissionsFind(submissionsSvc))
-		submissions.POST("", handlers.SubmissionCreate(submissionsSvc, client))
+		submissions.POST("", handlers.SubmissionCreate(submissionsSvc, client, replaysSvc))
 		submissions.POST("/:id/accept", handlers.SubmissionSetAccepted(submissionsSvc))
 
 		submissions.DELETE("/:id", handlers.SubmissionDelete(submissionsSvc))

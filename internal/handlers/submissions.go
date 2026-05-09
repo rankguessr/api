@@ -10,10 +10,9 @@ import (
 	"github.com/rankguessr/api/pkg/domain"
 	"github.com/rankguessr/api/pkg/osuapi"
 	"github.com/rankguessr/api/pkg/utils"
-	"github.com/wieku/rplpa"
 )
 
-func SubmissionCreate(submissions service.Submissions, client *osuapi.Client) echo.HandlerFunc {
+func SubmissionCreate(submissions service.Submissions, client *osuapi.Client, replays service.Replays) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		ctx := c.Request().Context()
 		session, err := utils.GetSession(c)
@@ -41,6 +40,7 @@ func SubmissionCreate(submissions service.Submissions, client *osuapi.Client) ec
 			return echo.NewHTTPError(http.StatusBadRequest, "submission limit reached").Wrap(utils.ErrLimitExceeded)
 		}
 
+		hasReplay := false
 		var scoreId int
 		form, err := c.MultipartForm()
 		if err == nil && form.File["score_file"] != nil {
@@ -60,16 +60,18 @@ func SubmissionCreate(submissions service.Submissions, client *osuapi.Client) ec
 				return echo.NewHTTPError(http.StatusInternalServerError, "failed to read score file").Wrap(err)
 			}
 
-			replay, err := rplpa.ParseReplay(data)
+			var anonymized []byte
+			scoreId, anonymized, err = utils.AnonymizeReplay(data)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusBadRequest, "failed to parse score file").Wrap(err)
 			}
 
-			if replay.ScoreInfo != nil {
-				scoreId = int(replay.ScoreInfo.ScoreId)
-			} else {
-				scoreId = int(replay.ScoreID)
+			err = replays.CreateForSubmission(ctx, anonymized, int64(len(anonymized)), scoreId)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "failed to save replay").Wrap(err)
 			}
+
+			hasReplay = true
 		} else if scoreUrl := c.FormValue("score_url"); scoreUrl != "" {
 			scoreId, err = utils.ParseScoreURL(scoreUrl)
 			if err != nil {
@@ -84,13 +86,19 @@ func SubmissionCreate(submissions service.Submissions, client *osuapi.Client) ec
 			return echo.NewHTTPError(http.StatusNotFound, "failed to get score from osu api").Wrap(err)
 		}
 
+		if !hasReplay && !score.Replay() {
+			return echo.NewHTTPError(http.StatusBadRequest, "score does not have a replay").Wrap(err)
+		}
+
 		submission, err := submissions.Create(ctx, domain.SubmissionCreate{
-			UserID:       session.User.OsuID,
+			Comment:     comment,
+			ScoreID:     score.ID,
+			IsAnonymous: anonymous,
+			HasReplay:   hasReplay,
+
 			PlayerID:     score.User.ID,
-			ScoreID:      score.ID,
-			Comment:      comment,
-			IsAnonymous:  anonymous,
 			BeatmapID:    score.Beatmap.ID,
+			UserID:       session.User.OsuID,
 			BeatmapsetID: score.Beatmap.BeatmapSetId,
 		})
 		if err != nil {
@@ -120,7 +128,7 @@ func SubmissionDelete(submissions service.Submissions) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete submission").Wrap(err)
 		}
 
-		return c.NoContent(http.StatusNoContent)
+		return c.JSON(http.StatusOK, utils.Map{"ok": true})
 	}
 }
 

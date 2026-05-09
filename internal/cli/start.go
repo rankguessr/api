@@ -84,7 +84,7 @@ func StartCmd(ctx context.Context, c *cli.Command) error {
 
 	minioClient, err := minio.New(cfg.S3Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.S3AccessKey, cfg.S3SecretKey, ""),
-		Secure: false,
+		Secure: cfg.S3Secure == "true",
 	})
 	if err != nil {
 		log.Fatal("s3 connection failed: ", err)

@@ -18,6 +18,7 @@ type Config struct {
 	DatabaseURL     string `env:"DATABASE_URL,required"`
 
 	S3Endpoint   string `env:"S3_ENDPOINT,required"`
+	S3Secure     string `env:"S3_SECURE,required"`
 	S3Region     string `env:"S3_REGION,required"`
 	S3BucketName string `env:"S3_BUCKET_NAME,required"`
 	S3PublicURL  string `env:"S3_PUBLIC_URL,required"`

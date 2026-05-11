@@ -3,13 +3,7 @@
 [![Website][website-shield]][website-url]
 [![Discord][discord-shield]][discord-url]
 
-<h1> 
-    <a href="https://rankguessr.app">
-        <img src="https://rankguessr.app/favicon.svg" alt="Logo" width="35"     height="35" style="vertical-align:middle; margin-bottom:5px;">
-    </a>
-    Rankguessr API
-</h1>
-
+# Rankguessr API
 This repo contains all logic behind rankguessr and some tools for player pool collection
 
 ## Run Locally

@@ -14,14 +14,14 @@
 
   # test turnstile secret, always returns success
   # use 2x0000000000000000000000000000000AA to fail
-  env.TURNSTILE_SECRET = "1x0000000000000000000000000000000AA";
-  env.DATABASE_URL = "postgres://postgres:postgres@127.0.0.1:5432/rankguessr?sslmode=disable";
   env.REDIS_URL = "redis://127.0.0.1:6379";
+  env.DATABASE_URL = "postgres://postgres:postgres@127.0.0.1:5432/rankguessr?sslmode=disable";
+  env.TURNSTILE_SECRET = "1x0000000000000000000000000000000AA";
 
+  env.S3_SECURE = "false";
   env.S3_ENDPOINT = "127.0.0.1:9000";
   env.S3_REGION = "us-east-1";
   env.S3_BUCKET_NAME = "default";
-  env.S3_PUBLIC_URL = "http://localhost:9000";
   env.S3_SECRET_KEY = "minioadmin";
   env.S3_ACCESS_KEY = "minioadmin";
 
